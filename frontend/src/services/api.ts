@@ -1,197 +1,156 @@
-// src/services/api.ts
 import axios from 'axios'
 
 // Configuración base de axios
 const api = axios.create({
   baseURL: 'http://localhost:8000/api',
-  timeout: 10000,
+  timeout: 30000, // Aumentar a 30 segundos
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   }
 })
 
-// Interceptor para manejar errores
-api.interceptors.response.use(
-  (response) => response,
+// Interceptor para agregar token a las requests
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  },
   (error) => {
-    console.error('API Error:', error.response?.data || error.message)
     return Promise.reject(error)
   }
 )
 
-// Tipos TypeScript
-export interface DashboardStats {
-  total_revenue: {
-    current: number
-    previous: number
-    growth: number
+// Interceptor para manejar respuestas y errores
+api.interceptors.response.use(
+  (response) => {
+    console.log('API Response:', response.data)
+    return response
+  },
+  async (error) => {
+    console.error('API Error Details:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      config: {
+        url: error.config?.url,
+        method: error.config?.method,
+        data: error.config?.data
+      }
+    })
+    
+    if (error.response?.status === 401) {
+      // Token expirado, limpiar storage y redirigir a login
+      localStorage.removeItem('token')
+      window.location.href = '/login'
+    }
+    
+    return Promise.reject(error)
   }
-  total_orders: {
-    current: number
-    previous: number
-  }
-  total_customers: number
-  low_stock_products: number
-}
+)
 
-export interface SalesData {
-  date: string
-  orders: number
-  revenue: number
-}
-
-export interface TopProduct {
-  id: number
-  name: string
-  category: string
-  total_sold: number
-  revenue: number
-  image_url: string
-}
-
-export interface RecentOrder {
-  id: number
-  order_number: string
-  customer_name: string
-  status: string
-  total: number
-  items_count: number
-  created_at: string
-}
-
-export interface Product {
-  id: number
-  name: string
-  description: string
-  price: number
-  stock: number
-  sku: string
-  category: string
-  image_url: string
-  active: boolean
-  created_at: string
-  updated_at: string
-}
-
-export interface Customer {
-  id: number
-  name: string
-  email: string
-  phone: string | null
-  address: string | null
-  city: string | null
-  country: string | null
-  total_spent: number
-  last_order_at: string | null
-  orders_count?: number
-  orders?: Order[]
-}
-
-export interface Order {
-  id: number
-  order_number: string
-  customer?: Customer
-  customer_id?: number
-  status: string
-  subtotal: number
-  tax: number
-  shipping: number
-  total: number
-  items?: OrderItem[]
-  created_at: string
-  updated_at: string
-}
-
-export interface OrderItem {
-  id: number
-  product?: Product
-  product_id?: number
-  quantity: number
-  unit_price: number
-  total_price: number
-}
-
-export interface PaginatedResponse<T> {
-  data: T[]
-  current_page: number
-  last_page: number
-  per_page: number
-  total: number
-  from: number
-  to: number
-}
-
-// Funciones del API
+// Funciones del API para Dashboard
 export const dashboardApi = {
   // Dashboard endpoints
-  getStats: (): Promise<DashboardStats> => 
+  getStats: () => 
     api.get('/dashboard/stats').then(res => res.data),
   
-  getSalesChart: (days: number = 30): Promise<SalesData[]> => 
+  getSalesChart: (days: number = 30) => 
     api.get('/dashboard/sales-chart', { params: { days } }).then(res => res.data),
   
-  getTopProducts: (): Promise<TopProduct[]> => 
+  getTopProducts: () => 
     api.get('/dashboard/top-products').then(res => res.data),
   
-  getRecentOrders: (): Promise<RecentOrder[]> => 
+  getRecentOrders: () => 
     api.get('/dashboard/recent-orders').then(res => res.data),
 
   // Products endpoints
-  getProducts: (page = 1): Promise<PaginatedResponse<Product>> => 
+  getProducts: (page = 1) => 
     api.get(`/dashboard/products?page=${page}`).then(res => res.data),
   
-  getProduct: (id: number): Promise<Product> => 
+  getProduct: (id: number) => 
     api.get(`/dashboard/products/${id}`).then(res => res.data),
   
-  createProduct: (product: Partial<Product>): Promise<Product> =>
+  createProduct: (product: any) =>
     api.post('/dashboard/products', product).then(res => res.data),
   
-  updateProduct: (id: number, product: Partial<Product>): Promise<Product> =>
+  updateProduct: (id: number, product: any) =>
     api.put(`/dashboard/products/${id}`, product).then(res => res.data),
   
-  deleteProduct: (id: number): Promise<void> =>
+  deleteProduct: (id: number) =>
     api.delete(`/dashboard/products/${id}`),
 
   // Orders endpoints
-  getOrders: (page = 1): Promise<PaginatedResponse<Order>> => 
+  getOrders: (page = 1) => 
     api.get(`/dashboard/orders?page=${page}`).then(res => res.data),
   
-  getOrder: (id: number): Promise<Order> => 
+  getOrder: (id: number) => 
     api.get(`/dashboard/orders/${id}`).then(res => res.data),
   
-  createOrder: (order: {
-    customer_id: number,
-    items: Array<{ product_id: number, quantity: number }>,
-    shipping: number
-  }): Promise<Order> =>
+  createOrder: (order: any) =>
     api.post('/dashboard/orders', order).then(res => res.data),
   
-  updateOrderStatus: (id: number, status: string): Promise<Order> => 
+  updateOrderStatus: (id: number, status: string) => 
     api.put(`/dashboard/orders/${id}/status`, { status }).then(res => res.data),
   
-  deleteOrder: (id: number): Promise<void> =>
+  deleteOrder: (id: number) =>
     api.delete(`/dashboard/orders/${id}`),
 
   // Customers endpoints
-  getCustomers: (page = 1): Promise<PaginatedResponse<Customer>> => 
+  getCustomers: (page = 1) => 
     api.get(`/dashboard/customers?page=${page}`).then(res => res.data),
   
-  getCustomer: (id: number): Promise<Customer> => 
+  getCustomer: (id: number) => 
     api.get(`/dashboard/customers/${id}`).then(res => res.data),
   
-  createCustomer: (customer: Partial<Customer>): Promise<Customer> =>
+  createCustomer: (customer: any) =>
     api.post('/dashboard/customers', customer).then(res => res.data),
   
-  updateCustomer: (id: number, customer: Partial<Customer>): Promise<Customer> =>
+  updateCustomer: (id: number, customer: any) =>
     api.put(`/dashboard/customers/${id}`, customer).then(res => res.data),
   
-  deleteCustomer: (id: number): Promise<void> =>
+  deleteCustomer: (id: number) =>
     api.delete(`/dashboard/customers/${id}`),
 
   // Test connection
-  testConnection: (): Promise<any> => 
+  testConnection: () => 
     api.get('/dashboard/test').then(res => res.data),
+}
+
+// Funciones del API para Auth
+export const authApi = {
+  login: (credentials: { email: string; password: string }) =>
+    api.post('/auth/login', credentials).then(res => res.data),
+  
+  register: (userData: any) =>
+    api.post('/auth/register', userData).then(res => res.data),
+  
+  logout: () =>
+    api.post('/auth/logout').then(res => res.data),
+  
+  refresh: () =>
+    api.post('/auth/refresh').then(res => res.data),
+  
+  getProfile: () =>
+    api.get('/auth/profile').then(res => res.data),
+  
+  updateProfile: (profileData: any) =>
+    api.put('/auth/profile', profileData).then(res => res.data),
+  
+  changePassword: (passwordData: any) =>
+    api.post('/auth/change-password', passwordData).then(res => res.data),
+}
+
+// Funciones del API para Admin
+export const adminApi = {
+  getAllUsers: () =>
+    api.get('/admin/users').then(res => res.data),
+  
+  toggleUserStatus: (userId: number) =>
+    api.put(`/admin/users/${userId}/toggle-status`).then(res => res.data),
 }
 
 export default api

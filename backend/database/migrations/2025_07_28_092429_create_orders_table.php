@@ -10,16 +10,21 @@ return new class extends Migration
     {
         Schema::create('orders', function (Blueprint $table) {
             $table->id();
-            $table->string('order_number')->unique();
+            $table->foreignId('user_id')->constrained()->onDelete('cascade'); // NUEVO
+            $table->string('order_number'); // Removido unique global
             $table->foreignId('customer_id')->constrained()->onDelete('cascade');
             $table->enum('status', ['pending', 'processing', 'shipped', 'delivered', 'cancelled'])->default('pending');
             $table->decimal('subtotal', 10, 2);
             $table->decimal('tax', 10, 2)->default(0);
             $table->decimal('shipping', 10, 2)->default(0);
             $table->decimal('total', 10, 2);
+            $table->text('notes')->nullable(); // NUEVO campo para notas
             $table->timestamp('shipped_at')->nullable();
             $table->timestamp('delivered_at')->nullable();
             $table->timestamps();
+            
+            // Order number único por usuario
+            $table->unique(['user_id', 'order_number']);
         });
     }
 

@@ -17,18 +17,25 @@ class OrderItem extends Model
         'total_price',
     ];
 
-    protected $casts = [
-        'unit_price' => 'decimal:2',
-        'total_price' => 'decimal:2',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'unit_price' => 'decimal:2',
+            'total_price' => 'decimal:2',
+        ];
+    }
 
-    // Relación con Order
+    /**
+     * Relationship with order
+     */
     public function order()
     {
         return $this->belongsTo(Order::class);
     }
 
-    // Relación con Product
+    /**
+     * Relationship with product
+     */
     public function product()
     {
         return $this->belongsTo(Product::class);

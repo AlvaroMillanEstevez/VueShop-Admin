@@ -1,7 +1,25 @@
 <template>
-  <AppLayout />
+  <div id="app">
+    <router-view />
+  </div>
 </template>
 
-<script setup lang="ts">
-import AppLayout from '@/components/AppLayout.vue'
+<script setup>
+import { onMounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+
+const authStore = useAuthStore()
+
+onMounted(() => {
+  // Initialize auth state when app starts
+  if (authStore.token && !authStore.user) {
+    authStore.initialize()
+  }
+})
 </script>
+
+<style>
+#app {
+  min-height: 100vh;
+}
+</style>

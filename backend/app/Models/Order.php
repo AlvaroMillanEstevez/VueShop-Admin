@@ -10,62 +10,88 @@ class Order extends Model
     use HasFactory;
 
     protected $fillable = [
-        'order_number',
+        'user_id',
         'customer_id',
+        'order_number',
         'status',
         'subtotal',
         'tax',
         'shipping',
         'total',
+        'notes',
         'shipped_at',
         'delivered_at',
     ];
 
-    protected $casts = [
-        'subtotal' => 'decimal:2',
-        'tax' => 'decimal:2',
-        'shipping' => 'decimal:2',
-        'total' => 'decimal:2',
-        'shipped_at' => 'datetime',
-        'delivered_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'subtotal' => 'decimal:2',
+            'tax' => 'decimal:2',
+            'shipping' => 'decimal:2',
+            'total' => 'decimal:2',
+            'shipped_at' => 'datetime',
+            'delivered_at' => 'datetime',
+        ];
+    }
 
-    // Relación con Customer
+    /**
+     * Relationship with user (owner)
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Relationship with customer
+     */
     public function customer()
     {
         return $this->belongsTo(Customer::class);
     }
 
-    // Relación con OrderItems
+    /**
+     * Relationship with order items
+     */
     public function items()
     {
         return $this->hasMany(OrderItem::class);
     }
 
-    // Órdenes del último mes
-    public function scopeLastMonth($query)
+    /**
+     * Scope para filtrar por usuario actual
+     */
+    public function scopeForUser($query, $userId)
     {
-        return $query->whereBetween('created_at', [
-            now()->subMonth()->startOfMonth(),
-            now()->subMonth()->endOfMonth()
-        ]);
+        return $query->where('user_id', $userId);
     }
 
-    // Órdenes de este mes
-    public function scopeThisMonth($query)
+    /**
+     * Scope para pedidos por estado
+     */
+    public function scopeByStatus($query, $status)
     {
-        return $query->whereBetween('created_at', [
-            now()->startOfMonth(),
-            now()->endOfMonth()
-        ]);
+        return $query->where('status', $status);
     }
 
-    // Ventas por día para gráficos
-    public function scopeDailySales($query, $days = 30)
+    /**
+     * Scope para pedidos recientes
+     */
+    public function scopeRecent($query, $days = 30)
     {
-        return $query->where('created_at', '>=', now()->subDays($days))
-                    ->selectRaw('DATE(created_at) as date, COUNT(*) as orders, SUM(total) as revenue')
-                    ->groupBy('date')
-                    ->orderBy('date');
+        return $query->where('created_at', '>=', now()->subDays($days));
+    }
+
+    /**
+     * Generate unique order number
+     */
+    public static function generateOrderNumber()
+    {
+        do {
+            $number = 'ORD-' . date('Y') . '-' . str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT);
+        } while (self::where('order_number', $number)->exists());
+
+        return $number;
     }
 }

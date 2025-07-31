@@ -10,36 +10,61 @@ class Customer extends Model
     use HasFactory;
 
     protected $fillable = [
+        'user_id',
         'name',
         'email',
         'phone',
         'address',
         'city',
         'country',
-        'last_order_at',
-        'total_spent',
+        'notes',
     ];
 
-    protected $casts = [
-        'last_order_at' => 'datetime',
-        'total_spent' => 'decimal:2',
-    ];
+    /**
+     * Relationship with user (owner)
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 
-    // Relación con Orders
+    /**
+     * Relationship with orders
+     */
     public function orders()
     {
         return $this->hasMany(Order::class);
     }
 
-    // Clientes VIP (más de 2000€ gastados)
-    public function scopeVip($query)
+    /**
+     * Scope para filtrar por usuario actual
+     */
+    public function scopeForUser($query, $userId)
     {
-        return $query->where('total_spent', '>', 2000);
+        return $query->where('user_id', $userId);
     }
 
-    // Clientes recientes (pedido en los últimos 7 días)
-    public function scopeRecentActivity($query)
+    /**
+     * Calculate total spent by customer
+     */
+    public function getTotalSpentAttribute()
     {
-        return $query->where('last_order_at', '>=', now()->subDays(7));
+        return $this->orders()->sum('total');
+    }
+
+    /**
+     * Get orders count
+     */
+    public function getOrdersCountAttribute()
+    {
+        return $this->orders()->count();
+    }
+
+    /**
+     * Get last order date
+     */
+    public function getLastOrderAtAttribute()
+    {
+        return $this->orders()->latest()->first()?->created_at;
     }
 }

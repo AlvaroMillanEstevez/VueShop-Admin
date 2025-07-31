@@ -4,177 +4,196 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
-use App\Models\Customer;
-use App\Models\Product;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class OrderController extends Controller
 {
-    public function index()
+    /**
+     * Display a listing of orders
+     */
+    public function index(Request $request)
     {
-        $orders = Order::with(['customer', 'items.product'])
-            ->orderBy('created_at', 'desc')
-            ->paginate(15);
-
-        // Añadir conteo de items a cada orden
-        $orders->getCollection()->transform(function ($order) {
-            $order->items_count = $order->items->count();
-            return $order;
-        });
-
-        return response()->json($orders);
-    }
-
-    public function show(Order $order)
-    {
-        $order->load(['customer', 'items.product']);
-        $order->items_count = $order->items->count();
-        
-        return response()->json($order);
-    }
-
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'customer_id' => 'required|exists:customers,id',
-            'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
-            'items.*.quantity' => 'required|integer|min:1',
-            'shipping' => 'required|numeric|min:0',
-        ]);
-
-        DB::beginTransaction();
         try {
-            // Calcular subtotal
-            $subtotal = 0;
-            $orderItems = [];
+            $userId = Auth::id();
+            $isAdmin = Auth::user()->role === 'admin';
             
-            foreach ($validated['items'] as $item) {
-                $product = Product::find($item['product_id']);
-                
-                // Verificar stock
-                if ($product->stock < $item['quantity']) {
-                    throw new \Exception("Stock insuficiente para el producto: {$product->name}");
-                }
-                
-                $itemTotal = $product->price * $item['quantity'];
-                $subtotal += $itemTotal;
-                
-                $orderItems[] = [
-                    'product_id' => $product->id,
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $product->price,
-                    'total_price' => $itemTotal,
+            $query = Order::with(['customer', 'user', 'items.product']);
+            
+            if (!$isAdmin) {
+                // Manager: solo sus pedidos
+                $query->where('user_id', $userId);
+            }
+            // Admin: ve todos los pedidos
+            
+            // Filtros
+            if ($request->has('status')) {
+                $query->where('status', $request->get('status'));
+            }
+            
+            if ($request->has('search')) {
+                $search = $request->get('search');
+                $query->where(function ($q) use ($search) {
+                    $q->where('order_number', 'like', "%{$search}%")
+                      ->orWhereHas('customer', function ($customerQuery) use ($search) {
+                          $customerQuery->where('name', 'like', "%{$search}%");
+                      });
+                });
+            }
+            
+            if ($request->has('seller_id') && $isAdmin) {
+                $query->where('user_id', $request->get('seller_id'));
+            }
+            
+            $orders = $query->orderByDesc('created_at')
+                           ->paginate(15);
+            
+            // Transformar datos para incluir info del vendedor si es admin
+            $orders->getCollection()->transform(function ($order) use ($isAdmin) {
+                $data = [
+                    'id' => $order->id,
+                    'order_number' => $order->order_number,
+                    'customer_name' => $order->customer->name ?? 'Cliente eliminado',
+                    'customer_email' => $order->customer->email ?? '',
+                    'status' => $order->status,
+                    'subtotal' => (float)$order->subtotal,
+                    'tax' => (float)$order->tax,
+                    'shipping' => (float)$order->shipping,
+                    'total' => (float)$order->total,
+                    'items_count' => $order->items->count(),
+                    'created_at' => $order->created_at->format('Y-m-d H:i:s'),
+                    'updated_at' => $order->updated_at->format('Y-m-d H:i:s'),
                 ];
                 
-                // Reducir stock
-                $product->decrement('stock', $item['quantity']);
-            }
+                // Incluir info del vendedor si es admin
+                if ($isAdmin) {
+                    $data['seller'] = [
+                        'id' => $order->user->id ?? null,
+                        'name' => $order->user->name ?? 'Sin asignar',
+                        'email' => $order->user->email ?? '',
+                    ];
+                }
+                
+                return $data;
+            });
             
-            // Calcular IVA (21%)
-            $tax = $subtotal * 0.21;
-            $total = $subtotal + $tax + $validated['shipping'];
+            return response()->json($orders);
             
-            // Generar número de orden
-            $lastOrder = Order::orderBy('id', 'desc')->first();
-            $orderNumber = 'ORD-' . str_pad(($lastOrder ? $lastOrder->id + 1 : 1), 6, '0', STR_PAD_LEFT);
-            
-            // Crear orden
-            $order = Order::create([
-                'order_number' => $orderNumber,
-                'customer_id' => $validated['customer_id'],
-                'status' => 'pending',
-                'subtotal' => $subtotal,
-                'tax' => $tax,
-                'shipping' => $validated['shipping'],
-                'total' => $total,
-            ]);
-            
-            // Crear items de la orden
-            foreach ($orderItems as $item) {
-                $order->items()->create($item);
-            }
-            
-            // Actualizar total_spent del cliente
-            $customer = Customer::find($validated['customer_id']);
-            $customer->increment('total_spent', $total);
-            $customer->update(['last_order_at' => now()]);
-            
-            DB::commit();
-            
-            $order->load(['customer', 'items.product']);
-            return response()->json($order, 201);
         } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json(['message' => $e->getMessage()], 422);
+            Log::error('Error in orders index:', ['error' => $e->getMessage()]);
+            return response()->json([
+                'data' => [],
+                'total' => 0,
+                'message' => 'Error loading orders'
+            ], 500);
         }
     }
 
+    /**
+     * Display the specified order
+     */
+    public function show(Order $order)
+    {
+        try {
+            $userId = Auth::id();
+            $isAdmin = Auth::user()->role === 'admin';
+            
+            // Verificar permisos
+            if (!$isAdmin && $order->user_id !== $userId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized'
+                ], 403);
+            }
+            
+            $order->load(['customer', 'user', 'items.product']);
+            
+            $data = [
+                'id' => $order->id,
+                'order_number' => $order->order_number,
+                'customer' => $order->customer,
+                'status' => $order->status,
+                'subtotal' => (float)$order->subtotal,
+                'tax' => (float)$order->tax,
+                'shipping' => (float)$order->shipping,
+                'total' => (float)$order->total,
+                'notes' => $order->notes,
+                'items' => $order->items->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'product_name' => $item->product->name ?? 'Producto eliminado',
+                        'quantity' => $item->quantity,
+                        'unit_price' => (float)$item->unit_price,
+                        'total_price' => (float)$item->total_price,
+                    ];
+                }),
+                'created_at' => $order->created_at->format('Y-m-d H:i:s'),
+                'updated_at' => $order->updated_at->format('Y-m-d H:i:s'),
+            ];
+            
+            if ($isAdmin) {
+                $data['seller'] = [
+                    'id' => $order->user->id ?? null,
+                    'name' => $order->user->name ?? 'Sin asignar',
+                    'email' => $order->user->email ?? '',
+                ];
+            }
+            
+            return response()->json([
+                'success' => true,
+                'data' => $data
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error in order show:', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Error loading order'
+            ], 500);
+        }
+    }
+
+    /**
+     * Update order status
+     */
     public function updateStatus(Request $request, Order $order)
     {
-        $validated = $request->validate([
-            'status' => 'required|in:pending,processing,shipped,delivered,cancelled',
-        ]);
-
-        $oldStatus = $order->status;
-        $newStatus = $validated['status'];
-
-        // Actualizar el estado
-        $order->status = $newStatus;
-
-        // Actualizar fechas según el estado
-        if ($newStatus === 'shipped' && !$order->shipped_at) {
-            $order->shipped_at = now();
-        }
-        
-        if ($newStatus === 'delivered' && !$order->delivered_at) {
-            $order->delivered_at = now();
+        try {
+            $userId = Auth::id();
+            $isAdmin = Auth::user()->role === 'admin';
             
-            // Actualizar la fecha del último pedido del cliente
-            $order->customer->update([
-                'last_order_at' => now()
+            // Verificar permisos
+            if (!$isAdmin && $order->user_id !== $userId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized'
+                ], 403);
+            }
+            
+            $validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+            
+            if (!in_array($request->status, $validStatuses)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid status'
+                ], 422);
+            }
+            
+            $order->update(['status' => $request->status]);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Order status updated successfully',
+                'data' => $order
             ]);
-        }
-
-        // Si se cancela el pedido, ajustar el total_spent del cliente y devolver stock
-        if ($oldStatus !== 'cancelled' && $newStatus === 'cancelled') {
-            $order->customer->decrement('total_spent', $order->total);
             
-            // Devolver stock de productos
-            foreach ($order->items as $item) {
-                $item->product->increment('stock', $item->quantity);
-            }
-        } elseif ($oldStatus === 'cancelled' && $newStatus !== 'cancelled') {
-            $order->customer->increment('total_spent', $order->total);
-            
-            // Reducir stock de productos
-            foreach ($order->items as $item) {
-                $item->product->decrement('stock', $item->quantity);
-            }
+        } catch (\Exception $e) {
+            Log::error('Error updating order status:', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Error updating order status'
+            ], 500);
         }
-
-        $order->save();
-        
-        // Recargar las relaciones para la respuesta
-        $order->load(['customer', 'items.product']);
-
-        return response()->json($order);
     }
-
-public function destroy(Order $order)
-{
-    // Solo permitir eliminar órdenes canceladas
-    if ($order->status !== 'cancelled') {
-        return response()->json([
-            'message' => 'Solo se pueden eliminar pedidos cancelados'
-        ], 422);
-    }
-
-    $order->delete();
-
-    return response()->json([
-        'message' => 'Pedido eliminado correctamente'
-    ]);
-}
 }

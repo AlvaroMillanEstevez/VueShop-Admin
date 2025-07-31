@@ -39,7 +39,7 @@
 
       <nav class="flex-1 p-4 space-y-1 overflow-y-auto overflow-x-hidden">
         <router-link 
-          v-for="item in menuItems" 
+          v-for="item in filteredMenuItems" 
           :key="item.path"
           :to="item.path" 
           class="nav-item"
@@ -54,6 +54,7 @@
         </router-link>
       </nav>
 
+      <!-- User Info Section - ACTUALIZADA -->
       <div class="p-4 border-t border-gray-200">
         <div class="flex items-center" :class="sidebarCollapsed && !isMobile ? 'justify-center' : 'space-x-3'">
           <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
@@ -62,9 +63,35 @@
             </svg>
           </div>
           <div v-if="!sidebarCollapsed || isMobile" class="flex-1 min-w-0">
-            <div class="text-sm font-semibold text-gray-900">Admin User</div>
-            <div class="text-xs text-gray-500">Administrador</div>
+            <div class="text-sm font-semibold text-gray-900">{{ authStore.user?.name || 'Usuario' }}</div>
+            <div class="text-xs text-gray-500 capitalize flex items-center justify-between">
+              <span :class="getRoleClass(authStore.user?.role)">
+                {{ getRoleLabel(authStore.user?.role) }}
+              </span>
+              <button 
+                @click="handleLogout"
+                class="ml-2 text-xs text-red-500 hover:text-red-700 transition-colors"
+                title="Cerrar sesión"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                </svg>
+              </button>
+            </div>
           </div>
+        </div>
+        
+        <!-- Botón logout cuando está colapsado -->
+        <div v-if="sidebarCollapsed && !isMobile" class="mt-2 flex justify-center">
+          <button 
+            @click="handleLogout"
+            class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+            title="Cerrar sesión"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+            </svg>
+          </button>
         </div>
       </div>
     </div>
@@ -91,6 +118,14 @@
               <input type="text" placeholder="Buscar..." class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 w-64">
             </div>
             
+            <!-- User info en header cuando está colapsado -->
+            <div v-if="sidebarCollapsed && !isMobile" class="hidden lg:flex items-center space-x-2 text-sm text-gray-600">
+              <span>{{ authStore.user?.name }}</span>
+              <span :class="getRoleClass(authStore.user?.role)" class="px-2 py-1 rounded-full text-xs">
+                {{ getRoleLabel(authStore.user?.role) }}
+              </span>
+            </div>
+            
             <div class="relative">
               <button class="p-2 text-gray-400 hover:text-gray-600">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -113,9 +148,12 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
+const router = useRouter()
+const authStore = useAuthStore()
 const sidebarCollapsed = ref(false)
 const mobileSidebarOpen = ref(false)
 const isMobile = ref(false)
@@ -132,28 +170,45 @@ onMounted(() => {
   })
 })
 
-const menuItems = [
+const allMenuItems = [
   {
     path: '/',
     name: 'Dashboard',
-    icon: 'M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z'
+    icon: 'M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z',
+    roles: ['admin', 'manager']
   },
   {
     path: '/products',
     name: 'Productos',
-    icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'
+    icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
+    roles: ['admin', 'manager']
   },
   {
     path: '/orders',
     name: 'Pedidos',
-    icon: 'M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z'
+    icon: 'M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z',
+    roles: ['admin', 'manager']
   },
   {
     path: '/customers',
     name: 'Clientes',
-    icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z'
+    icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z',
+    roles: ['admin', 'manager']
+  },
+  // Futuras opciones solo para admin
+  {
+    path: '/admin/users',
+    name: 'Gestión de Usuarios',
+    icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z',
+    roles: ['admin']
   }
 ]
+
+// Filtrar menú según rol del usuario
+const filteredMenuItems = computed(() => {
+  const userRole = authStore.user?.role || 'manager'
+  return allMenuItems.filter(item => item.roles.includes(userRole))
+})
 
 const sidebarClasses = computed(() => {
   const base = 'bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ease-in-out'
@@ -197,8 +252,34 @@ const handleResize = () => {
 }
 
 const getCurrentPageTitle = () => {
-  const currentItem = menuItems.find(item => item.path === route.path)
+  const currentItem = filteredMenuItems.value.find(item => item.path === route.path)
   return currentItem?.name || 'Dashboard'
+}
+
+// Funciones para manejar auth
+const handleLogout = async () => {
+  try {
+    await authStore.logout()
+    router.push('/login')
+  } catch (error) {
+    console.error('Error during logout:', error)
+  }
+}
+
+const getRoleLabel = (role: string | undefined) => {
+  const labels = {
+    admin: 'Administrador',
+    manager: 'Manager'
+  }
+  return labels[role as keyof typeof labels] || 'Usuario'
+}
+
+const getRoleClass = (role: string | undefined) => {
+  const classes = {
+    admin: 'text-red-600 bg-red-100',
+    manager: 'text-blue-600 bg-blue-100'
+  }
+  return classes[role as keyof typeof classes] || 'text-gray-600 bg-gray-100'
 }
 </script>
 

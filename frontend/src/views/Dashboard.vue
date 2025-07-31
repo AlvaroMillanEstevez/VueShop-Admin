@@ -5,25 +5,31 @@
     </div>
 
     <div v-else>
-      <div v-if="error" class="text-red-500 text-center">{{ error }}</div>
+      <div v-if="error" class="text-red-500 text-center mb-4">{{ error }}</div>
       
       <!-- Estadísticas -->
       <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div class="bg-white shadow rounded p-4 stat-card">
           <p class="text-gray-500 text-sm">Ingresos Totales</p>
-          <p class="text-lg font-semibold">€{{ formatNumber(stats.total_revenue?.current || 0) }}</p>
+          <p class="text-lg font-semibold">€{{ formatNumber(stats?.total_revenue?.current || 0) }}</p>
+          <p v-if="stats?.total_revenue?.growth" class="text-sm" :class="stats.total_revenue.growth > 0 ? 'text-green-600' : 'text-red-600'">
+            {{ stats.total_revenue.growth > 0 ? '+' : '' }}{{ stats.total_revenue.growth.toFixed(1) }}% vs mes anterior
+          </p>
         </div>
         <div class="bg-white shadow rounded p-4 stat-card">
           <p class="text-gray-500 text-sm">Pedidos Totales</p>
-          <p class="text-lg font-semibold">{{ stats.total_orders?.current || 0 }}</p>
+          <p class="text-lg font-semibold">{{ stats?.total_orders?.current || 0 }}</p>
+          <p v-if="stats?.total_orders?.previous !== undefined" class="text-sm text-gray-600">
+            {{ (stats.total_orders.current - stats.total_orders.previous) >= 0 ? '+' : '' }}{{ (stats.total_orders.current - stats.total_orders.previous) }} vs mes anterior
+          </p>
         </div>
         <div class="bg-white shadow rounded p-4 stat-card">
           <p class="text-gray-500 text-sm">Clientes Activos</p>
-          <p class="text-lg font-semibold">{{ stats.active_customers || 0 }}</p>
+          <p class="text-lg font-semibold">{{ stats?.active_customers || 0 }}</p>
         </div>
         <div class="bg-white shadow rounded p-4 stat-card">
           <p class="text-gray-500 text-sm">Productos en Stock</p>
-          <p class="text-lg font-semibold">{{ stats.products_in_stock || 0 }}</p>
+          <p class="text-lg font-semibold">{{ stats?.products_in_stock || 0 }}</p>
         </div>
       </div>
 
@@ -56,13 +62,18 @@
 
       <!-- Pedidos recientes -->
       <div class="bg-white shadow rounded p-4">
-        <h2 class="text-lg font-semibold mb-4">Pedidos Recientes</h2>
+        <h2 class="text-lg font-semibold mb-4">
+          Pedidos Recientes 
+          <span v-if="authStore.isAdmin" class="text-sm font-normal text-gray-500">(Todos los vendedores)</span>
+          <span v-else class="text-sm font-normal text-gray-500">(Mis pedidos)</span>
+        </h2>
         <div class="overflow-auto">
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
                 <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
                 <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                <th v-if="authStore.isAdmin" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vendedor</th>
                 <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
                 <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
                 <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
@@ -70,8 +81,9 @@
             </thead>
             <tbody class="divide-y divide-gray-100">
               <tr v-for="order in recentOrders" :key="order.id">
-                <td class="px-4 py-2">{{ order.id }}</td>
+                <td class="px-4 py-2">{{ order.order_number }}</td>
                 <td class="px-4 py-2">{{ order.customer_name }}</td>
+                <td v-if="authStore.isAdmin" class="px-4 py-2 text-blue-600 font-medium">{{ order.seller_name || 'Sin asignar' }}</td>
                 <td class="px-4 py-2">{{ formatDate(order.date) }}</td>
                 <td class="px-4 py-2">€{{ formatNumber(order.total) }}</td>
                 <td class="px-4 py-2">
@@ -81,7 +93,7 @@
                 </td>
               </tr>
               <tr v-if="recentOrders.length === 0">
-                <td colspan="5" class="text-center py-4 text-gray-400">No hay pedidos recientes.</td>
+                <td :colspan="authStore.isAdmin ? 6 : 5" class="text-center py-4 text-gray-400">No hay pedidos recientes.</td>
               </tr>
             </tbody>
           </table>
@@ -93,12 +105,15 @@
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick, computed, onUnmounted, watch } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import { dashboardApi } from '@/services/api'
 import { Chart, registerables } from 'chart.js'
 import type { ChartTypeRegistry } from 'chart.js'
 
 // Registrar todos los componentes de Chart.js
 Chart.register(...registerables)
+
+const authStore = useAuthStore()
 
 // Estado reactivo
 const loading = ref(true)
@@ -114,11 +129,6 @@ let chartInstance: Chart | null = null
 const chartType = ref<'line' | 'bar' | 'doughnut'>('line')
 const dataToShow = ref<'both' | 'revenue' | 'orders' | 'products'>('both')
 const chartPeriod = ref(30)
-
-// Computed
-const ordersDiff = computed(() => {
-  return (stats.value?.total_orders?.current || 0) - (stats.value?.total_orders?.previous || 0)
-})
 
 // Funciones de utilidad
 const formatNumber = (num: number): string => {
@@ -161,12 +171,11 @@ const getStatusClasses = (status: string): string => {
   return classes[status] || 'bg-gray-100 text-gray-800'
 }
 
-// Crear el gráfico
+// Crear el gráfico (simplificado para evitar errores)
 const createChart = async () => {
   await nextTick()
   
   if (!salesChart.value || salesData.value.length === 0) {
-    console.log('No hay datos para el gráfico o el canvas no está listo')
     return
   }
 
@@ -177,10 +186,7 @@ const createChart = async () => {
   }
 
   const ctx = salesChart.value.getContext('2d')
-  if (!ctx) {
-    console.error('No se pudo obtener el contexto del canvas')
-    return
-  }
+  if (!ctx) return
 
   // Preparar los datos según la selección
   const labels = salesData.value.map(item => {
@@ -190,40 +196,33 @@ const createChart = async () => {
 
   let datasets: any[] = []
   
-  // Configurar datasets según la selección
   if (dataToShow.value === 'both' && chartType.value !== 'doughnut') {
     datasets = [
       {
         label: 'Ingresos (€)',
         data: salesData.value.map(item => item.revenue),
-        borderColor: 'rgb(34, 197, 94)', // Verde
+        borderColor: 'rgb(34, 197, 94)',
         backgroundColor: 'rgba(34, 197, 94, 0.1)',
         yAxisID: 'y',
         tension: 0.4,
         fill: true,
-        pointRadius: 4,
-        pointHoverRadius: 6,
         borderWidth: 2
       },
       {
         label: 'Pedidos',
         data: salesData.value.map(item => item.orders),
-        borderColor: 'rgb(168, 85, 247)', // Púrpura
+        borderColor: 'rgb(168, 85, 247)',
         backgroundColor: 'rgba(168, 85, 247, 0.1)',
         yAxisID: 'y1',
         tension: 0.4,
         fill: true,
-        pointRadius: 4,
-        pointHoverRadius: 6,
         borderWidth: 2
       }
     ]
-  } else if (dataToShow.value === 'revenue' || (dataToShow.value === 'both' && chartType.value === 'doughnut')) {
+  } else if (dataToShow.value === 'revenue') {
     datasets = [{
       label: 'Ingresos (€)',
-      data: chartType.value === 'doughnut' 
-        ? salesData.value.slice(-7).map(item => item.revenue) // Últimos 7 días para gráfico circular
-        : salesData.value.map(item => item.revenue),
+      data: salesData.value.map(item => item.revenue),
       borderColor: 'rgb(34, 197, 94)',
       backgroundColor: chartType.value === 'doughnut'
         ? ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#6366f1', '#ec4899']
@@ -233,17 +232,14 @@ const createChart = async () => {
   } else if (dataToShow.value === 'orders') {
     datasets = [{
       label: 'Pedidos',
-      data: chartType.value === 'doughnut'
-        ? salesData.value.slice(-7).map(item => item.orders)
-        : salesData.value.map(item => item.orders),
+      data: salesData.value.map(item => item.orders),
       borderColor: 'rgb(168, 85, 247)',
       backgroundColor: chartType.value === 'doughnut'
         ? ['#a855f7', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#6366f1', '#ec4899']
         : 'rgba(168, 85, 247, 0.1)',
       borderWidth: 2
     }]
-  } else if (dataToShow.value === 'products') {
-    // Para productos, usamos los top productos
+  } else if (dataToShow.value === 'products' && topProducts.value.length > 0) {
     const productLabels = topProducts.value.map(p => p.name)
     const productData = topProducts.value.map(p => p.total_sold)
     
@@ -254,177 +250,45 @@ const createChart = async () => {
       borderWidth: 2
     }]
     
-    // Actualizar labels para productos
-    if (chartType.value === 'doughnut' || chartType.value === 'bar') {
-      labels.length = 0
-      labels.push(...productLabels)
-    }
-  }
-
-  // Configuración específica para gráfico circular
-  if (chartType.value === 'doughnut') {
     labels.length = 0
-    if (dataToShow.value === 'products') {
-      labels.push(...topProducts.value.map(p => p.name))
-    } else {
-      labels.push(...salesData.value.slice(-7).map(item => {
-        const date = new Date(item.date)
-        return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
-      }))
-    }
+    labels.push(...productLabels)
   }
 
   try {
-    // Crear el gráfico
     chartInstance = new Chart(ctx, {
       type: chartType.value as string as keyof ChartTypeRegistry,
-      data: {
-        labels: labels,
-        datasets: datasets
-      },
-      options: getChartOptions()
-    })
-    
-    console.log('Gráfico creado exitosamente')
-  } catch (error) {
-    console.error('Error al crear el gráfico:', error)
-  }
-}
-
-// Obtener opciones del gráfico según el tipo
-const getChartOptions = () => {
-  const baseOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: chartType.value === 'doughnut' ? 'right' as const : 'top' as const,
-        labels: {
-          usePointStyle: true,
-          padding: 20,
-          font: {
-            size: 12
-          }
-        }
-      },
-      tooltip: {
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        padding: 12,
-        cornerRadius: 8,
-        titleFont: {
-          size: 14,
-          weight: 'bold' as const
-        },
-        bodyFont: {
-          size: 13
-        },
-        callbacks: {
-          label: function(context: any) {
-            let label = context.dataset.label || '';
-            if (label) {
-              label += ': ';
-            }
-            if (context.parsed.y !== null) {
-              if (label.includes('Ingresos')) {
-                label += new Intl.NumberFormat('es-ES', {
-                  style: 'currency',
-                  currency: 'EUR'
-                }).format(context.parsed.y);
-              } else {
-                label += context.parsed.y;
-              }
-            } else if (context.parsed !== null) {
-              // Para gráficos circulares
-              if (context.dataset.label?.includes('Ingresos')) {
-                label += new Intl.NumberFormat('es-ES', {
-                  style: 'currency',
-                  currency: 'EUR'
-                }).format(context.parsed);
-              } else {
-                label += context.parsed;
-              }
-            }
-            return label;
-          }
-        }
-      }
-    }
-  }
-
-  // Opciones específicas para gráficos de líneas y barras
-  if (chartType.value !== 'doughnut') {
-    return {
-      ...baseOptions,
-      interaction: {
-        mode: 'index' as const,
-        intersect: false,
-      },
-      scales: {
-        x: {
-          grid: {
-            display: false
-          },
-          ticks: {
-            font: {
-              size: 11
-            },
-            maxRotation: 45,
-            minRotation: chartType.value === 'bar' ? 0 : 45
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: chartType.value === 'doughnut' ? 'right' as const : 'top' as const,
           }
         },
-        y: {
-          type: 'linear' as const,
-          display: true,
-          position: 'left' as const,
-          beginAtZero: true,
-          title: {
-            display: true,
-            text: dataToShow.value === 'orders' ? 'Cantidad' : 'Ingresos (€)',
-            font: {
-              size: 12
-            }
-          },
-          ticks: {
-            callback: function(value: any) {
-              if (dataToShow.value === 'revenue' || dataToShow.value === 'both') {
-                return '€' + value.toLocaleString('es-ES');
+        ...(chartType.value !== 'doughnut' ? {
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: 'Ingresos (€)' }
+            },
+            ...(dataToShow.value === 'both' ? {
+              y1: {
+                type: 'linear' as const,
+                display: true,
+                position: 'right' as const,
+                beginAtZero: true,
+                title: { display: true, text: 'Número de pedidos' },
+                grid: { drawOnChartArea: false }
               }
-              return value;
-            },
-            font: {
-              size: 11
-            }
-          }
-        },
-        ...(dataToShow.value === 'both' ? {
-          y1: {
-            type: 'linear' as const,
-            display: true,
-            position: 'right' as const,
-            beginAtZero: true,
-            title: {
-              display: true,
-              text: 'Número de pedidos',
-              font: {
-                size: 12
-              }
-            },
-            grid: {
-              drawOnChartArea: false,
-            },
-            ticks: {
-              font: {
-                size: 11
-              },
-              stepSize: 1
-            }
+            } : {})
           }
         } : {})
       }
-    }
+    })
+  } catch (error) {
+    console.error('Error al crear el gráfico:', error)
   }
-
-  return baseOptions
 }
 
 // Actualizar el gráfico cuando cambien los controles
@@ -449,8 +313,7 @@ const loadDashboardData = async () => {
     loading.value = true
     error.value = null
 
-    // Probar conexión primero
-    await dashboardApi.testConnection()
+    console.log(`Loading dashboard data for ${authStore.isAdmin ? 'admin' : 'manager'}...`)
 
     // Cargar todos los datos
     const [statsData, salesChartData, topProductsData, recentOrdersData] = await Promise.all([
@@ -466,18 +329,15 @@ const loadDashboardData = async () => {
     recentOrders.value = recentOrdersData
 
     // Crear el gráfico después de cargar los datos
-    await nextTick()
-    
-    // Usar setTimeout para asegurar que el canvas esté listo
     setTimeout(() => {
       createChart()
     }, 100)
 
-    console.log('Datos cargados correctamente')
+    console.log('Dashboard data loaded successfully')
 
   } catch (err: any) {
     console.error('Error loading dashboard:', err)
-    error.value = 'Error al cargar los datos del dashboard. Por favor, verifica que el servidor Laravel esté ejecutándose.'
+    error.value = 'Error al cargar los datos del dashboard. Por favor, verifica que el servidor esté ejecutándose.'
   } finally {
     loading.value = false
   }
@@ -498,7 +358,6 @@ watch(salesData, (newData) => {
 }, { deep: true })
 
 onUnmounted(() => {
-  // Limpiar el gráfico al desmontar el componente
   if (chartInstance) {
     chartInstance.destroy()
   }
@@ -526,12 +385,5 @@ onUnmounted(() => {
 
 .stat-card:hover {
   transform: translateY(-2px);
-}
-
-/* Responsive table */
-@media (max-width: 640px) {
-  table {
-    font-size: 0.875rem;
-  }
 }
 </style>

@@ -10,6 +10,7 @@ class Product extends Model
     use HasFactory;
 
     protected $fillable = [
+        'user_id',
         'name',
         'description',
         'price',
@@ -20,28 +21,51 @@ class Product extends Model
         'active',
     ];
 
-    protected $casts = [
-        'price' => 'decimal:2',
-        'active' => 'boolean',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'price' => 'decimal:2',
+            'active' => 'boolean',
+        ];
+    }
 
-    // Relación con OrderItems
+    /**
+     * Relationship with user (owner)
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Relationship with order items
+     */
     public function orderItems()
     {
         return $this->hasMany(OrderItem::class);
     }
 
-    // Productos más vendidos
-    public function scopeTopSelling($query, $limit = 5)
+    /**
+     * Scope para filtrar por usuario actual
+     */
+    public function scopeForUser($query, $userId)
     {
-        return $query->withCount(['orderItems as total_sold' => function($query) {
-            $query->selectRaw('sum(quantity)');
-        }])->orderBy('total_sold', 'desc')->limit($limit);
+        return $query->where('user_id', $userId);
     }
 
-    // Productos con bajo stock
+    /**
+     * Scope para productos activos
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('active', true);
+    }
+
+    /**
+     * Scope para productos con stock bajo
+     */
     public function scopeLowStock($query, $threshold = 10)
     {
-        return $query->where('stock', '<=', $threshold)->where('active', true);
+        return $query->where('stock', '<=', $threshold);
     }
 }

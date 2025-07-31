@@ -5,57 +5,181 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Validator;
 
 class ProductController extends Controller
 {
-    public function index()
+    /**
+     * Display a listing of products
+     */
+    public function index(Request $request)
     {
-        $products = Product::orderBy('created_at', 'desc')->paginate(10);
+        $userId = Auth::id();
+        $isAdmin = Auth::user()->role === 'admin';
+        
+        $query = Product::with('user');
+        
+        // Filtrar por usuario si no es admin
+        if (!$isAdmin) {
+            $query->where('user_id', $userId);
+        }
+        
+        // Filtros adicionales
+        if ($request->has('search')) {
+            $search = $request->get('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('sku', 'like', "%{$search}%")
+                  ->orWhere('category', 'like', "%{$search}%");
+            });
+        }
+        
+        if ($request->has('category')) {
+            $query->where('category', $request->get('category'));
+        }
+        
+        if ($request->has('active')) {
+            $query->where('active', $request->boolean('active'));
+        }
+        
+        $products = $query->orderBy('created_at', 'desc')
+                         ->paginate(15);
+        
         return response()->json($products);
     }
 
-    public function show(Product $product)
-    {
-        return response()->json($product);
-    }
-
+    /**
+     * Store a newly created product
+     */
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
             'stock' => 'required|integer|min:0',
-            'sku' => 'required|string|unique:products',
-            'category' => 'nullable|string',
+            'sku' => 'required|string|max:100|unique:products,sku',
+            'category' => 'required|string|max:100',
             'image_url' => 'nullable|url',
             'active' => 'boolean',
         ]);
 
-        $product = Product::create($validated);
-        return response()->json($product, 201);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation errors',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $product = Product::create(array_merge(
+            $request->all(),
+            ['user_id' => Auth::id()]
+        ));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Product created successfully',
+            'data' => $product->load('user')
+        ], 201);
     }
 
+    /**
+     * Display the specified product
+     */
+    public function show(Product $product)
+    {
+        $userId = Auth::id();
+        $isAdmin = Auth::user()->role === 'admin';
+        
+        // Verificar que el usuario puede ver este producto
+        if (!$isAdmin && $product->user_id !== $userId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized'
+            ], 403);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $product->load('user')
+        ]);
+    }
+
+    /**
+     * Update the specified product
+     */
     public function update(Request $request, Product $product)
     {
-        $validated = $request->validate([
-            'name' => 'sometimes|required|string|max:255',
+        $userId = Auth::id();
+        $isAdmin = Auth::user()->role === 'admin';
+        
+        // Verificar que el usuario puede editar este producto
+        if (!$isAdmin && $product->user_id !== $userId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized'
+            ], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'name' => 'sometimes|string|max:255',
             'description' => 'nullable|string',
-            'price' => 'sometimes|required|numeric|min:0',
-            'stock' => 'sometimes|required|integer|min:0',
-            'sku' => 'sometimes|required|string|unique:products,sku,' . $product->id,
-            'category' => 'nullable|string',
+            'price' => 'sometimes|numeric|min:0',
+            'stock' => 'sometimes|integer|min:0',
+            'sku' => 'sometimes|string|max:100|unique:products,sku,' . $product->id,
+            'category' => 'sometimes|string|max:100',
             'image_url' => 'nullable|url',
-            'active' => 'sometimes|boolean',
+            'active' => 'boolean',
         ]);
 
-        $product->update($validated);
-        return response()->json($product);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation errors',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $product->update($request->all());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Product updated successfully',
+            'data' => $product->load('user')
+        ]);
     }
 
+    /**
+     * Remove the specified product
+     */
     public function destroy(Product $product)
     {
+        $userId = Auth::id();
+        $isAdmin = Auth::user()->role === 'admin';
+        
+        // Verificar que el usuario puede eliminar este producto
+        if (!$isAdmin && $product->user_id !== $userId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized'
+            ], 403);
+        }
+
+        // Verificar si el producto tiene pedidos asociados
+        if ($product->orderItems()->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot delete product with associated orders'
+            ], 422);
+        }
+
         $product->delete();
-        return response()->json(['message' => 'Product deleted successfully']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Product deleted successfully'
+        ]);
     }
 }
