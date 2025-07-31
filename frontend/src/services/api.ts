@@ -1,9 +1,12 @@
-import axios from 'axios'
+import axios, { type AxiosResponse, AxiosError } from 'axios'
+
+// Importar tipos si los tienes en types/index.ts
+// import type { Product, Order, Customer, User, ApiResponse, PaginatedResponse } from '@/types'
 
 // Configuración base de axios
 const api = axios.create({
   baseURL: 'http://localhost:8000/api',
-  timeout: 30000, // Aumentar a 30 segundos
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -24,13 +27,13 @@ api.interceptors.request.use(
   }
 )
 
-// Interceptor para manejar respuestas y errores
+// Interceptor mejorado para manejar respuestas y errores
 api.interceptors.response.use(
-  (response) => {
+  (response: AxiosResponse) => {
     console.log('API Response:', response.data)
     return response
   },
-  async (error) => {
+  async (error: AxiosError) => {
     console.error('API Error Details:', {
       message: error.message,
       response: error.response?.data,
@@ -42,6 +45,14 @@ api.interceptors.response.use(
       }
     })
     
+    // Manejo especial para respuestas HTML (páginas de error)
+    if (error.response && error.response.headers['content-type']?.includes('text/html')) {
+      console.error('Received HTML response instead of JSON:', error.response.data)
+      const htmlError = new Error(`Server returned HTML instead of JSON (Status: ${error.response.status})`)
+      htmlError.name = 'HTMLResponseError'
+      return Promise.reject(htmlError)
+    }
+    
     if (error.response?.status === 401) {
       // Token expirado, limpiar storage y redirigir a login
       localStorage.removeItem('token')
@@ -52,105 +63,267 @@ api.interceptors.response.use(
   }
 )
 
-// Funciones del API para Dashboard
+// Helper function para manejar errores de API de forma consistente
+const handleApiError = (error: any): string => {
+  if (error.name === 'HTMLResponseError') {
+    return error.message
+  }
+  
+  if (error.response) {
+    const status = error.response.status
+    const data = error.response.data
+    
+    switch (status) {
+      case 401:
+        return 'Authentication failed. Please log in again.'
+      case 403:
+        return 'Access denied. You do not have permission for this action.'
+      case 404:
+        return 'Resource not found.'
+      case 422:
+        // Laravel validation errors
+        if (data.errors) {
+          const errorMessages = Object.values(data.errors).flat()
+          return errorMessages.join(', ')
+        }
+        return data.message || 'Validation failed.'
+      case 500:
+        return 'Server error. Please try again later.'
+      default:
+        return data.message || `HTTP ${status}: ${error.response.statusText}`
+    }
+  }
+  
+  if (error.code === 'ECONNABORTED') {
+    return 'Request timeout. Please check your connection.'
+  }
+  
+  if (error.message.includes('Network Error')) {
+    return 'Network error. Please check your connection.'
+  }
+  
+  return error.message || 'An unexpected error occurred.'
+}
+
+// Enhanced API response wrapper
+interface ApiResponseWrapper<T> {
+  success: boolean
+  data?: T
+  error?: string
+  status?: number
+}
+
+const makeRequest = async <T>(requestPromise: Promise<AxiosResponse<T>>): Promise<ApiResponseWrapper<T>> => {
+  try {
+    const response = await requestPromise
+    return {
+      success: true,
+      data: response.data,
+      status: response.status
+    }
+  } catch (error) {
+    const err = error as any
+    return {
+      success: false,
+      error: handleApiError(err),
+      status: err.response?.status || 0
+    }
+  }
+}
+
+// Funciones del API para Dashboard con mejor manejo de errores
 export const dashboardApi = {
   // Dashboard endpoints
   getStats: () => 
-    api.get('/dashboard/stats').then(res => res.data),
+    makeRequest(api.get('/dashboard/stats')),
   
   getSalesChart: (days: number = 30) => 
-    api.get('/dashboard/sales-chart', { params: { days } }).then(res => res.data),
+    makeRequest(api.get('/dashboard/sales-chart', { params: { days } })),
   
   getTopProducts: () => 
-    api.get('/dashboard/top-products').then(res => res.data),
+    makeRequest(api.get('/dashboard/top-products')),
   
   getRecentOrders: () => 
-    api.get('/dashboard/recent-orders').then(res => res.data),
+    makeRequest(api.get('/dashboard/recent-orders')),
 
-  // Products endpoints
-  getProducts: (page = 1) => 
-    api.get(`/dashboard/products?page=${page}`).then(res => res.data),
+  // Products endpoints con parámetros mejorados
+  getProducts: (params: { 
+    page?: number
+    category?: string
+    active?: string
+    search?: string
+  } = {}) => {
+    const queryParams = new URLSearchParams()
+    
+    if (params.page) queryParams.append('page', params.page.toString())
+    if (params.category) queryParams.append('category', params.category)
+    if (params.active) queryParams.append('active', params.active)
+    if (params.search) queryParams.append('search', params.search)
+    
+    return makeRequest(api.get(`/dashboard/products?${queryParams.toString()}`))
+  },
   
   getProduct: (id: number) => 
-    api.get(`/dashboard/products/${id}`).then(res => res.data),
+    makeRequest(api.get(`/dashboard/products/${id}`)),
   
   createProduct: (product: any) =>
-    api.post('/dashboard/products', product).then(res => res.data),
+    makeRequest(api.post('/dashboard/products', product)),
   
   updateProduct: (id: number, product: any) =>
-    api.put(`/dashboard/products/${id}`, product).then(res => res.data),
+    makeRequest(api.put(`/dashboard/products/${id}`, product)),
   
   deleteProduct: (id: number) =>
-    api.delete(`/dashboard/products/${id}`),
+    makeRequest(api.delete(`/dashboard/products/${id}`)),
 
-  // Orders endpoints
-  getOrders: (page = 1) => 
-    api.get(`/dashboard/orders?page=${page}`).then(res => res.data),
+  // Orders endpoints con parámetros mejorados
+  getOrders: (params: { 
+    page?: number
+    status?: string
+    search?: string
+    seller_id?: string
+  } = {}) => {
+    const queryParams = new URLSearchParams()
+    
+    if (params.page) queryParams.append('page', params.page.toString())
+    if (params.status) queryParams.append('status', params.status)
+    if (params.search) queryParams.append('search', params.search)
+    if (params.seller_id) queryParams.append('seller_id', params.seller_id)
+    
+    return makeRequest(api.get(`/dashboard/orders?${queryParams.toString()}`))
+  },
   
   getOrder: (id: number) => 
-    api.get(`/dashboard/orders/${id}`).then(res => res.data),
+    makeRequest(api.get(`/dashboard/orders/${id}`)),
   
   createOrder: (order: any) =>
-    api.post('/dashboard/orders', order).then(res => res.data),
+    makeRequest(api.post('/dashboard/orders', order)),
   
   updateOrderStatus: (id: number, status: string) => 
-    api.put(`/dashboard/orders/${id}/status`, { status }).then(res => res.data),
+    makeRequest(api.put(`/dashboard/orders/${id}/status`, { status })),
   
   deleteOrder: (id: number) =>
-    api.delete(`/dashboard/orders/${id}`),
+    makeRequest(api.delete(`/dashboard/orders/${id}`)),
 
   // Customers endpoints
-  getCustomers: (page = 1) => 
-    api.get(`/dashboard/customers?page=${page}`).then(res => res.data),
+  getCustomers: (params: { page?: number; search?: string } = {}) => {
+    const queryParams = new URLSearchParams()
+    
+    if (params.page) queryParams.append('page', params.page.toString())
+    if (params.search) queryParams.append('search', params.search)
+    
+    return makeRequest(api.get(`/dashboard/customers?${queryParams.toString()}`))
+  },
   
   getCustomer: (id: number) => 
-    api.get(`/dashboard/customers/${id}`).then(res => res.data),
+    makeRequest(api.get(`/dashboard/customers/${id}`)),
   
   createCustomer: (customer: any) =>
-    api.post('/dashboard/customers', customer).then(res => res.data),
+    makeRequest(api.post('/dashboard/customers', customer)),
   
   updateCustomer: (id: number, customer: any) =>
-    api.put(`/dashboard/customers/${id}`, customer).then(res => res.data),
+    makeRequest(api.put(`/dashboard/customers/${id}`, customer)),
   
   deleteCustomer: (id: number) =>
-    api.delete(`/dashboard/customers/${id}`),
+    makeRequest(api.delete(`/dashboard/customers/${id}`)),
 
-  // Test connection
+  // Test connection y health check
   testConnection: () => 
-    api.get('/dashboard/test').then(res => res.data),
+    makeRequest(api.get('/dashboard/test')),
+    
+  healthCheck: () =>
+    makeRequest(api.get('/health')),
 }
 
 // Funciones del API para Auth
 export const authApi = {
   login: (credentials: { email: string; password: string }) =>
-    api.post('/auth/login', credentials).then(res => res.data),
+    makeRequest(api.post('/auth/login', credentials)),
   
   register: (userData: any) =>
-    api.post('/auth/register', userData).then(res => res.data),
+    makeRequest(api.post('/auth/register', userData)),
   
   logout: () =>
-    api.post('/auth/logout').then(res => res.data),
+    makeRequest(api.post('/auth/logout')),
   
   refresh: () =>
-    api.post('/auth/refresh').then(res => res.data),
+    makeRequest(api.post('/auth/refresh')),
   
   getProfile: () =>
-    api.get('/auth/profile').then(res => res.data),
+    makeRequest(api.get('/auth/profile')),
   
   updateProfile: (profileData: any) =>
-    api.put('/auth/profile', profileData).then(res => res.data),
+    makeRequest(api.put('/auth/profile', profileData)),
   
   changePassword: (passwordData: any) =>
-    api.post('/auth/change-password', passwordData).then(res => res.data),
+    makeRequest(api.post('/auth/change-password', passwordData)),
 }
 
 // Funciones del API para Admin
 export const adminApi = {
   getAllUsers: () =>
-    api.get('/admin/users').then(res => res.data),
+    makeRequest(api.get('/admin/users')),
   
   toggleUserStatus: (userId: number) =>
-    api.put(`/admin/users/${userId}/toggle-status`).then(res => res.data),
+    makeRequest(api.put(`/admin/users/${userId}/toggle-status`)),
+}
+
+// Compatibilidad con el código anterior (servicio simple para componentes que no usen dashboardApi)
+export class APIService {
+  private token: string | null = null
+
+  setToken(token: string) {
+    this.token = token
+    if (token) {
+      localStorage.setItem('token', token)
+    }
+  }
+
+  async getProducts(params: Record<string, string> = {}) {
+    return dashboardApi.getProducts(params)
+  }
+
+  async getProduct(id: number) {
+    return dashboardApi.getProduct(id)
+  }
+
+  async getOrders(params: Record<string, string> = {}) {
+    return dashboardApi.getOrders(params)
+  }
+
+  async getOrder(id: number) {
+    return dashboardApi.getOrder(id)
+  }
+
+  async healthCheck() {
+    return dashboardApi.healthCheck()
+  }
+}
+
+export const apiService = new APIService()
+
+// Helper function para usar en componentes
+export const handleAPIError = (response: ApiResponseWrapper<any>, fallbackMessage = 'An error occurred'): string => {
+  if (response.success) return ''
+  
+  if (response.error) return response.error
+  
+  if (response.status === 401) {
+    return 'Authentication required. Please log in again.'
+  }
+  
+  if (response.status === 403) {
+    return 'Access denied. You do not have permission to perform this action.'
+  }
+  
+  if (response.status === 404) {
+    return 'Resource not found.'
+  }
+  
+  if (response.status === 500) {
+    return 'Server error. Please try again later.'
+  }
+  
+  return fallbackMessage
 }
 
 export default api

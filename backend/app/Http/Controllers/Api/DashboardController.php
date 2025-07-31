@@ -3,242 +3,282 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Product;
-use App\Models\Order;
-use App\Models\Customer;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Http\JsonResponse;
+use App\Models\Order;
+use App\Models\Product;
+use App\Models\User;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
     /**
      * Get dashboard statistics
      */
-    public function stats()
+    public function stats(Request $request): JsonResponse
     {
         try {
-            $userId = Auth::id();
-            $isAdmin = Auth::user()->role === 'admin';
+            $user = $request->user();
             
-            Log::info('Loading stats for user', ['user_id' => $userId, 'is_admin' => $isAdmin]);
+            // Base queries depending on user role
+            if ($user->is_admin) {
+                // Admin sees all data
+                $ordersQuery = Order::query();
+                $productsQuery = Product::query();
+                $customersQuery = User::where('role', 'customer');
+            } else {
+                // Sellers see only their data - using user_id instead of seller_id
+                $ordersQuery = Order::where('user_id', $user->id);
+                $productsQuery = Product::where('seller_id', $user->id);
+                $customersQuery = User::whereHas('orders', function ($query) use ($user) {
+                    $query->where('user_id', $user->id);
+                });
+            }
             
-            // Calcular estadísticas del mes actual y anterior
-            $currentMonth = now()->startOfMonth();
-            $previousMonth = now()->subMonth()->startOfMonth();
+            // Calculate stats
+            $totalRevenue = $ordersQuery->where('status', '!=', 'cancelled')->sum('total');
+            $totalOrders = $ordersQuery->count();
+            $activeCustomers = $customersQuery->where('is_active', true)->count();
+            $productsInStock = $productsQuery->where('active', true)->where('stock', '>', 0)->count();
             
-            // Ingresos totales
-            $currentRevenue = Order::when(!$isAdmin, function ($query) use ($userId) {
-                    return $query->where('user_id', $userId);
-                })
-                ->where('created_at', '>=', $currentMonth)
-                ->sum('total') ?? 0;
-                
-            $previousRevenue = Order::when(!$isAdmin, function ($query) use ($userId) {
-                    return $query->where('user_id', $userId);
-                })
-                ->whereBetween('created_at', [$previousMonth, $currentMonth])
-                ->sum('total') ?? 0;
-            
-            // Pedidos totales
-            $currentOrders = Order::when(!$isAdmin, function ($query) use ($userId) {
-                    return $query->where('user_id', $userId);
-                })
-                ->where('created_at', '>=', $currentMonth)
-                ->count();
-                
-            $previousOrders = Order::when(!$isAdmin, function ($query) use ($userId) {
-                    return $query->where('user_id', $userId);
-                })
-                ->whereBetween('created_at', [$previousMonth, $currentMonth])
-                ->count();
-            
-            // Clientes activos
-            $activeCustomers = Customer::when(!$isAdmin, function ($query) use ($userId) {
-                    return $query->where('user_id', $userId);
-                })
-                ->whereHas('orders', function ($query) {
-                    $query->where('created_at', '>=', now()->subDays(30));
-                })
-                ->count();
-            
-            // Productos en stock
-            $productsInStock = Product::when(!$isAdmin, function ($query) use ($userId) {
-                    return $query->where('user_id', $userId);
-                })
-                ->where('active', true)
-                ->where('stock', '>', 0)
-                ->count();
-
             $stats = [
                 'total_revenue' => [
-                    'current' => (float)$currentRevenue,
-                    'previous' => (float)$previousRevenue,
-                    'growth' => $previousRevenue > 0 ? (($currentRevenue - $previousRevenue) / $previousRevenue) * 100 : 0
+                    'amount' => (float) $totalRevenue,
+                    'currency' => 'EUR'
                 ],
                 'total_orders' => [
-                    'current' => $currentOrders,
-                    'previous' => $previousOrders
+                    'count' => $totalOrders
                 ],
                 'active_customers' => $activeCustomers,
-                'products_in_stock' => $productsInStock,
+                'products_in_stock' => $productsInStock
             ];
-
-            Log::info('Stats calculated', $stats);
-            return response()->json($stats);
-
-        } catch (\Exception $e) {
-            Log::error('Error in stats:', ['error' => $e->getMessage()]);
+            
             return response()->json([
-                'total_revenue' => ['current' => 0, 'previous' => 0, 'growth' => 0],
-                'total_orders' => ['current' => 0, 'previous' => 0],
-                'active_customers' => 0,
-                'products_in_stock' => 0,
+                'success' => true,
+                'data' => $stats
             ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error loading dashboard stats: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load dashboard statistics',
+                'error' => app()->environment('local') ? $e->getMessage() : 'Internal server error'
+            ], 500);
         }
     }
-
+    
     /**
      * Get sales chart data
      */
-    public function salesChart(Request $request)
+    public function salesChart(Request $request): JsonResponse
     {
         try {
-            $userId = Auth::id();
-            $isAdmin = Auth::user()->role === 'admin';
-            $days = $request->get('days', 30);
+            $days = (int) $request->get('days', 30);
+            $user = $request->user();
             
-            $startDate = Carbon::now()->subDays($days)->startOfDay();
+            // Validate days parameter
+            if ($days < 1 || $days > 365) {
+                $days = 30;
+            }
             
-            $salesData = Order::select(
-                    DB::raw('DATE(created_at) as date'),
-                    DB::raw('COUNT(*) as orders'),
-                    DB::raw('COALESCE(SUM(total), 0) as revenue')
-                )
-                ->when(!$isAdmin, function ($query) use ($userId) {
-                    return $query->where('user_id', $userId);
-                })
-                ->where('created_at', '>=', $startDate)
-                ->groupBy('date')
-                ->orderBy('date')
-                ->get();
-
-            // Rellenar días faltantes con 0
+            $startDate = Carbon::now()->subDays($days - 1)->startOfDay();
+            $endDate = Carbon::now()->endOfDay();
+            
+            // Base query depending on user role
+            $query = Order::whereBetween('created_at', [$startDate, $endDate])
+                          ->where('status', '!=', 'cancelled');
+            
+            if (!$user->is_admin) {
+                $query->where('user_id', $user->id); // Using user_id instead of seller_id
+            }
+            
+            // Get daily sales data
+            $salesData = $query->selectRaw('DATE(created_at) as date, SUM(total) as amount')
+                              ->groupBy(DB::raw('DATE(created_at)'))
+                              ->orderBy('date')
+                              ->get();
+            
+            // Create array with all dates (fill missing dates with 0)
             $chartData = [];
-            for ($i = $days - 1; $i >= 0; $i--) {
-                $date = Carbon::now()->subDays($i)->format('Y-m-d');
-                $dayData = $salesData->firstWhere('date', $date);
+            $currentDate = $startDate->copy();
+            
+            while ($currentDate <= $endDate) {
+                $dateString = $currentDate->toDateString();
+                $found = $salesData->firstWhere('date', $dateString);
                 
                 $chartData[] = [
-                    'date' => $date,
-                    'orders' => $dayData ? (int)$dayData->orders : 0,
-                    'revenue' => $dayData ? (float)$dayData->revenue : 0
+                    'date' => $dateString,
+                    'amount' => $found ? (float) $found->amount : 0.0
                 ];
+                
+                $currentDate->addDay();
             }
-
-            return response()->json($chartData);
-
+            
+            return response()->json([
+                'success' => true,
+                'data' => $chartData
+            ]);
+            
         } catch (\Exception $e) {
-            Log::error('Error in salesChart:', ['error' => $e->getMessage()]);
-            return response()->json([]);
+            \Log::error('Error loading sales chart: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load sales chart data',
+                'error' => app()->environment('local') ? $e->getMessage() : 'Internal server error'
+            ], 500);
         }
     }
-
+    
     /**
      * Get top products
      */
-    public function topProducts()
+    public function topProducts(Request $request): JsonResponse
     {
         try {
-            $userId = Auth::id();
-            $isAdmin = Auth::user()->role === 'admin';
+            $user = $request->user();
+            $limit = (int) $request->get('limit', 5);
             
-            // Consulta simplificada sin joins complejos
-            $topProducts = Product::when(!$isAdmin, function ($query) use ($userId) {
-                    return $query->where('user_id', $userId);
-                })
-                ->where('active', true)
-                ->orderBy('stock', 'desc') // Por ahora ordenar por stock
-                ->limit(5)
-                ->get()
-                ->map(function ($product) {
-                    return [
-                        'id' => $product->id,
-                        'name' => $product->name,
-                        'category' => $product->category,
-                        'total_sold' => rand(5, 50), // Datos temporales
-                        'revenue' => $product->price * rand(5, 50),
-                        'image_url' => $product->image_url,
-                    ];
-                });
-
-            return response()->json($topProducts);
-
+            // Base query depending on user role
+            if ($user->is_admin) {
+                $query = Product::query();
+            } else {
+                $query = Product::where('seller_id', $user->id);
+            }
+            
+            // Get products with sales count from order items
+            $topProducts = $query->leftJoin('order_items', 'products.id', '=', 'order_items.product_id')
+                                ->leftJoin('orders', function($join) {
+                                    $join->on('order_items.order_id', '=', 'orders.id')
+                                         ->where('orders.status', '!=', 'cancelled');
+                                })
+                                ->select([
+                                    'products.id',
+                                    'products.name',
+                                    'products.price',
+                                    'products.image_url',
+                                    'products.seller_id',
+                                    DB::raw('COALESCE(SUM(order_items.quantity), 0) as sales_count')
+                                ])
+                                ->groupBy('products.id', 'products.name', 'products.price', 'products.image_url', 'products.seller_id')
+                                ->orderBy('sales_count', 'desc')
+                                ->limit($limit)
+                                ->get();
+            
+            // Transform data
+            $transformedProducts = $topProducts->map(function ($product) {
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'price' => (float) $product->price,
+                    'image_url' => $product->image_url,
+                    'sales_count' => (int) $product->sales_count,
+                ];
+            });
+            
+            return response()->json([
+                'success' => true,
+                'data' => $transformedProducts
+            ]);
+            
         } catch (\Exception $e) {
-            Log::error('Error in topProducts:', ['error' => $e->getMessage()]);
-            return response()->json([]);
+            \Log::error('Error loading top products: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load top products',
+                'error' => app()->environment('local') ? $e->getMessage() : 'Internal server error'
+            ], 500);
         }
     }
-
+    
     /**
      * Get recent orders
      */
-    public function recentOrders()
+    public function recentOrders(Request $request): JsonResponse
     {
         try {
-            $userId = Auth::id();
-            $isAdmin = Auth::user()->role === 'admin';
+            $user = $request->user();
+            $limit = (int) $request->get('limit', 10);
             
-            $query = Order::with(['customer', 'user']); // Incluir relación con user (vendedor)
+            // Base query depending on user role
+            $query = Order::query();
             
-            if (!$isAdmin) {
-                // Manager: solo sus pedidos
-                $query->where('user_id', $userId);
+            if (!$user->is_admin) {
+                $query->where('user_id', $user->id); // Using user_id instead of seller_id
             }
-            // Admin: ve todos los pedidos de todos los managers
             
-            $recentOrders = $query->orderByDesc('created_at')
-                ->limit(10)
-                ->get()
-                ->map(function ($order) use ($isAdmin) {
-                    $data = [
-                        'id' => $order->id,
-                        'order_number' => $order->order_number,
-                        'customer_name' => $order->customer->name ?? 'Cliente eliminado',
-                        'status' => $order->status,
-                        'total' => (float)$order->total,
-                        'date' => $order->created_at->format('Y-m-d H:i:s')
-                    ];
-                    
-                    // Solo incluir vendedor si es admin
-                    if ($isAdmin) {
-                        $data['seller_name'] = $order->user->name ?? 'Sin asignar';
-                        $data['seller_id'] = $order->user_id;
-                    }
-                    
-                    return $data;
-                });
-
-            return response()->json($recentOrders);
-
+            // Get recent orders with basic data
+            $recentOrders = $query->orderBy('created_at', 'desc')
+                                 ->limit($limit)
+                                 ->get();
+            
+            // Transform data
+            $transformedOrders = $recentOrders->map(function ($order) {
+                // Try to get customer info if customer_id exists
+                $customer = null;
+                if ($order->customer_id) {
+                    $customer = User::find($order->customer_id);
+                }
+                
+                return [
+                    'id' => $order->id,
+                    'order_number' => $order->order_number,
+                    'customer_name' => $customer ? $customer->name : 'N/A',
+                    'customer_email' => $customer ? $customer->email : 'N/A',
+                    'total' => (float) $order->total,
+                    'status' => $order->status,
+                    'items_count' => 0, // We'll calculate this if needed
+                    'created_at' => $order->created_at
+                ];
+            });
+            
+            return response()->json([
+                'success' => true,
+                'data' => $transformedOrders
+            ]);
+            
         } catch (\Exception $e) {
-            Log::error('Error in recentOrders:', ['error' => $e->getMessage()]);
-            return response()->json([]);
+            \Log::error('Error loading recent orders: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load recent orders',
+                'error' => app()->environment('local') ? $e->getMessage() : 'Internal server error'
+            ], 500);
         }
     }
-
+    
     /**
-     * Test endpoint
+     * Test endpoint for debugging
      */
-    public function test()
+    public function test(Request $request): JsonResponse
     {
-        return response()->json([
-            'message' => 'VueShop Admin API is working!',
-            'timestamp' => now(),
-            'user' => Auth::user(),
-            'role' => Auth::user()->role,
-        ]);
+        try {
+            $user = $request->user();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Dashboard API test successful',
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'role' => $user->role,
+                    'is_admin' => $user->is_admin
+                ],
+                'timestamp' => now(),
+                'environment' => app()->environment()
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Dashboard API test failed',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

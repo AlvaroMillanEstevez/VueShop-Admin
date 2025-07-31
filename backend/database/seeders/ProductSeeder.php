@@ -122,7 +122,7 @@ class ProductSeeder extends Seeder
                     'user_id' => $user->id,
                     'name' => $template['name'],
                     'description' => $template['description'],
-                    'price' => $template['price'] + rand(-50, 50), // Pequeña variación en precio
+                    'price' => round($template['price'] + rand(-50, 50), 2),
                     'stock' => $template['stock'] + rand(-5, 10), // Variación en stock
                     'sku' => 'SKU-' . $user->id . '-' . str_pad($index + 1, 3, '0', STR_PAD_LEFT),
                     'category' => $template['category'],

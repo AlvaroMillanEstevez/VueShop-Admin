@@ -22,8 +22,8 @@ class OrderSeeder extends Seeder
         $statusWeights = [15, 25, 30, 25, 5]; // Probabilidades de cada estado
 
         foreach ($managers as $user) {
-            $customers = $user->customers;
-            $products = $user->products;
+            $customers = Customer::where('user_id', $user->id)->get();
+            $products = Product::where('user_id', $user->id)->get();
             
             if ($customers->isEmpty() || $products->isEmpty()) {
                 continue;
@@ -46,9 +46,6 @@ class OrderSeeder extends Seeder
                     'customer_id' => $customers->random()->id,
                     'order_number' => $this->generateOrderNumber($user->id, $i),
                     'status' => $status,
-                    'subtotal' => 0, // Se calculará después
-                    'tax' => 0,
-                    'shipping' => rand(0, 3) == 0 ? rand(5, 25) : 0, // 25% tienen envío
                     'total' => 0, // Se calculará después
                     'notes' => rand(0, 4) == 0 ? 'Pedido especial del cliente' : null,
                     'created_at' => $orderDate,
@@ -57,7 +54,6 @@ class OrderSeeder extends Seeder
 
                 // Agregar entre 1-5 items por pedido
                 $itemCount = $this->getWeightedItemCount();
-                $subtotal = 0;
                 $usedProducts = collect();
                 
                 for ($j = 0; $j < $itemCount; $j++) {
@@ -82,18 +78,7 @@ class OrderSeeder extends Seeder
                         'total_price' => $totalPrice,
                     ]);
                     
-                    $subtotal += $totalPrice;
                 }
-                
-                // Calcular totales
-                $tax = $subtotal * 0.21; // 21% IVA España
-                $total = $subtotal + $tax + $order->shipping;
-                
-                $order->update([
-                    'subtotal' => round($subtotal, 2),
-                    'tax' => round($tax, 2),
-                    'total' => round($total, 2),
-                ]);
                 
                 // Actualizar fechas según el estado
                 if ($status === 'shipped') {

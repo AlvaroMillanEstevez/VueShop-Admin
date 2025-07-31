@@ -34,7 +34,7 @@ const router = createRouter({
     },
     {
       path: '/',
-      component: AppLayout, // Usar tu AppLayout como wrapper
+      component: AppLayout,
       meta: { requiresAuth: true },
       children: [
         {
@@ -68,28 +68,88 @@ const router = createRouter({
           meta: { requiresAdmin: true }
         }
       ]
+    },
+    // Catch all route - debe ir al final
+    {
+      path: '/:pathMatch(.*)*',
+      redirect: '/dashboard'
     }
   ]
 })
 
-// Navigation guards
-router.beforeEach(async (to) => {
+// Enhanced navigation guards
+router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
   
-  // Initialize auth if not done yet
-  if (authStore.token && !authStore.user) {
-    await authStore.initialize()
-  }
+  console.log(`Navigating to: ${to.path}`)
+  console.log('Current auth state:', {
+    isAuthenticated: authStore.isAuthenticated,
+    hasToken: !!authStore.token,
+    hasUser: !!authStore.user
+  })
   
-  // Check if route requires authentication
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    return '/login'
+  try {
+    // Initialize auth if we have a token but no user
+    if (authStore.token && !authStore.user && !authStore.isAuthenticated) {
+      console.log('Initializing auth...')
+      const initialized = await authStore.initialize()
+      console.log('Auth initialized:', initialized)
+    }
+    
+    // Check if route requires authentication
+    if (to.meta.requiresAuth) {
+      if (!authStore.isAuthenticated) {
+        console.log('Route requires auth but user not authenticated, redirecting to login')
+        next('/login')
+        return
+      }
+    }
+    
+    // Check if route requires admin role
+    if (to.meta.requiresAdmin) {
+      if (!authStore.isAuthenticated) {
+        console.log('Route requires admin but user not authenticated, redirecting to login')
+        next('/login')
+        return
+      }
+      
+      if (!authStore.isAdmin) {
+        console.log('Route requires admin but user is not admin, redirecting to dashboard')
+        next('/dashboard')
+        return
+      }
+    }
+    
+    // Check if route requires guest (not authenticated)
+    if (to.meta.requiresGuest) {
+      if (authStore.isAuthenticated) {
+        console.log('Route requires guest but user is authenticated, redirecting to dashboard')
+        next('/dashboard')
+        return
+      }
+    }
+    
+    // All checks passed
+    console.log('Navigation allowed')
+    next()
+    
+  } catch (error) {
+    console.error('Router navigation error:', error)
+    
+    // En caso de error durante la inicialización, limpiar auth y redirigir a login
+    if (to.meta.requiresAuth) {
+      console.log('Auth error, clearing state and redirecting to login')
+      authStore.logout()
+      next('/login')
+    } else {
+      next()
+    }
   }
-  
-  // Check if route requires guest (not authenticated)
-  if (to.meta.requiresGuest && authStore.isAuthenticated) {
-    return '/dashboard'
-  }
+})
+
+// Optional: Log successful navigations
+router.afterEach((to, from) => {
+  console.log(`Successfully navigated from ${from.path} to ${to.path}`)
 })
 
 export default router

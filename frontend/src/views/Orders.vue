@@ -1,151 +1,359 @@
+<script setup lang="ts">
+import { ref, onMounted, reactive } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+import { dashboardApi, handleAPIError } from '@/services/api'
+
+// Types - Puedes importarlos desde types/index.ts si los tienes
+interface Customer {
+  id: number
+  name: string
+  email: string
+}
+
+interface Seller {
+  id: number
+  name: string
+}
+
+interface OrderItem {
+  id: number
+  product_name?: string
+  product?: {
+    name: string
+  }
+  quantity: number
+  unit_price?: number
+  price?: number
+  total_price?: number
+}
+
+interface Order {
+  id: number
+  order_number: string
+  customer_name?: string
+  customer_email?: string
+  customer?: Customer
+  seller?: Seller
+  items_count?: number
+  items?: OrderItem[]
+  total: number
+  subtotal?: number
+  tax?: number
+  shipping?: number
+  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
+  created_at: string
+}
+
+interface Pagination {
+  current_page: number
+  last_page: number
+  per_page: number
+  total: number
+  from: number
+  to: number
+}
+
+const authStore = useAuthStore()
+
+// State
+const loading = ref<boolean>(true)
+const orders = ref<Order[]>([])
+const pagination = ref<Pagination>({
+  current_page: 1,
+  last_page: 1,
+  per_page: 15,
+  total: 0,
+  from: 0,
+  to: 0
+})
+const showModal = ref<boolean>(false)
+const selectedOrder = ref<Order | null>(null)
+const error = ref<string>('')
+const loadingOrderDetails = ref<boolean>(false)
+
+// Filters
+const filters = reactive({
+  status: '',
+  search: '',
+  seller_id: ''
+})
+
+let searchTimeout: number | null = null
+
+// Enhanced load orders using new API service
+const loadOrders = async (page: number = 1): Promise<void> => {
+  try {
+    loading.value = true
+    error.value = ''
+    
+    const params: any = { page }
+    
+    if (filters.status) params.status = filters.status
+    if (filters.search) params.search = filters.search
+    if (filters.seller_id) params.seller_id = filters.seller_id
+    
+    console.log('Loading orders with params:', params)
+    
+    const response = await dashboardApi.getOrders(params)
+    
+    if (response.success && response.data) {
+      const data = response.data as any
+      orders.value = data.data || []
+      pagination.value = {
+        current_page: data.current_page || 1,
+        last_page: data.last_page || 1,
+        per_page: data.per_page || 15,
+        total: data.total || 0,
+        from: data.from || 0,
+        to: data.to || 0
+      }
+      console.log('Orders loaded successfully:', orders.value.length)
+    } else {
+      error.value = handleAPIError(response, 'Failed to load orders')
+      orders.value = []
+    }
+  } catch (err) {
+    console.error('Unexpected error loading orders:', err)
+    error.value = 'An unexpected error occurred while loading orders'
+    orders.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+// View order with enhanced error handling using new API service
+const viewOrder = async (orderId: number): Promise<void> => {
+  try {
+    loadingOrderDetails.value = true
+    
+    const response = await dashboardApi.getOrder(orderId)
+    
+    if (response.success && response.data) {
+      selectedOrder.value = response.data.data || response.data
+      showModal.value = true
+    } else {
+      const errorMessage = handleAPIError(response, 'Failed to load order details')
+      alert(errorMessage) // You might want to show this in a toast or modal
+    }
+  } catch (error) {
+    console.error('Error loading order details:', error)
+    alert('An unexpected error occurred while loading order details')
+  } finally {
+    loadingOrderDetails.value = false
+  }
+}
+
+// Debounced search
+const debounceSearch = (): void => {
+  if (searchTimeout) {
+    clearTimeout(searchTimeout)
+  }
+  searchTimeout = setTimeout(() => {
+    loadOrders()
+  }, 500)
+}
+
+// Edit order
+const editOrder = (order: Order): void => {
+  console.log('Edit order:', order)
+  // TODO: Implement edit functionality
+}
+
+// Close modal
+const closeModal = (): void => {
+  showModal.value = false
+  selectedOrder.value = null
+}
+
+// Change page
+const changePage = (page: number): void => {
+  if (page >= 1 && page <= pagination.value.last_page) {
+    loadOrders(page)
+  }
+}
+
+// Retry loading
+const retryLoad = (): void => {
+  loadOrders()
+}
+
+// Utility functions
+const formatCurrency = (amount: number): string => {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(amount)
+}
+
+const formatDate = (dateString: string): string => {
+  return new Date(dateString).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+const translateStatus = (status: string): string => {
+  const translations: Record<string, string> = {
+    pending: 'Pending',
+    processing: 'Processing',
+    shipped: 'Shipped',
+    delivered: 'Delivered',
+    cancelled: 'Cancelled'
+  }
+  return translations[status] || status
+}
+
+const getStatusClass = (status: string): string => {
+  const classes: Record<string, string> = {
+    pending: 'bg-yellow-100 text-yellow-800',
+    processing: 'bg-blue-100 text-blue-800',
+    shipped: 'bg-purple-100 text-purple-800',
+    delivered: 'bg-green-100 text-green-800',
+    cancelled: 'bg-red-100 text-red-800'
+  }
+  return classes[status] || 'bg-gray-100 text-gray-800'
+}
+
+onMounted(() => {
+  loadOrders()
+})
+</script>
+
 <template>
-  <div class="p-4 sm:p-6 lg:p-8 max-w-none">
-    <!-- Header -->
-    <div class="bg-white p-4 sm:p-6 lg:p-8 rounded-2xl shadow-sm mb-6 sm:mb-8 border-l-4 border-l-green-500">
-      <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2 sm:mb-3">Gestión de Pedidos</h1>
-      <p class="text-gray-600 text-base sm:text-lg">Administra todos los pedidos de tu tienda</p>
-    </div>
-
-    <div v-if="loading" class="flex justify-center items-center h-64 text-gray-500">
-      <div class="spinner mr-3"></div>
-      <span class="text-lg">Cargando pedidos...</span>
-    </div>
-
-    <div v-else class="bg-white rounded-2xl shadow-sm overflow-hidden">
-      <div class="p-4 sm:p-6 lg:p-8 border-b border-gray-200">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-          <div>
-            <h3 class="text-xl sm:text-2xl font-bold text-gray-900">Lista de Pedidos</h3>
-            <p class="text-gray-500 mt-1 text-sm sm:text-base">Total: {{ pagination?.total || 0 }} pedidos</p>
-          </div>
-          <!-- Aquí podrías añadir un botón de crear pedido si lo necesitas -->
-        </div>
+  <div class="p-6">
+    <div class="mb-8 flex justify-between items-center">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900">Orders</h1>
+        <p class="text-gray-600">
+          {{ authStore.isAdmin ? 'Manage all orders from all sellers' : 'Manage your orders' }}
+        </p>
       </div>
+      <button class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+        </svg>
+        <span>New Order</span>
+      </button>
+    </div>
 
-      <!-- Vista móvil (cards) -->
-      <div class="block lg:hidden p-4 space-y-4" v-if="orders.length > 0">
-        <div v-for="order in orders" :key="order.id" class="bg-white border border-gray-200 rounded-lg p-4">
-          <!-- Encabezado de la card -->
-          <div class="flex justify-between items-start mb-3">
-            <div>
-              <span class="font-mono font-semibold text-blue-600 text-sm">#{{ order.order_number }}</span>
-              <div class="mt-1">
-                <div class="font-medium text-gray-900">{{ order.customer?.name }}</div>
-                <div class="text-sm text-gray-500">{{ order.customer?.email }}</div>
-              </div>
-            </div>
-            <span class="text-xs text-gray-500">{{ formatDate(order.created_at) }}</span>
+    <!-- Error Display -->
+    <div v-if="error" class="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <div class="ml-3">
+          <h3 class="text-sm font-medium text-red-800">Error Loading Orders</h3>
+          <div class="mt-2 text-sm text-red-700">
+            <p>{{ error }}</p>
           </div>
-
-          <!-- Estado -->
-          <div class="mb-3">
-            <label class="text-xs text-gray-500 block mb-1">Estado:</label>
-            <select 
-              :value="order.status" 
-              @change="updateOrderStatus(order.id, ($event.target as HTMLSelectElement).value)"
-              class="w-full px-3 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              :class="getStatusSelectClass(order.status)"
-              :disabled="updating === order.id"
+          <div class="mt-3">
+            <button
+              @click="retryLoad"
+              class="bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1 rounded text-sm font-medium"
             >
-              <option value="pending">Pendiente</option>
-              <option value="processing">Procesando</option>
-              <option value="shipped">Enviado</option>
-              <option value="delivered">Entregado</option>
-              <option value="cancelled">Cancelado</option>
-            </select>
+              Try Again
+            </button>
           </div>
-
-          <!-- Información del pedido -->
-          <div class="space-y-2 text-sm mb-4">
-            <div class="flex justify-between">
-              <span class="text-gray-500">Artículos:</span>
-              <span class="font-medium">{{ order.items?.length || 0 }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-gray-500">Subtotal:</span>
-              <span>€{{ formatNumber(order.subtotal) }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-gray-500">IVA:</span>
-              <span>€{{ formatNumber(order.tax) }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-gray-500">Envío:</span>
-              <span>€{{ formatNumber(order.shipping) }}</span>
-            </div>
-            <div class="flex justify-between pt-2 border-t border-gray-200">
-              <span class="font-medium text-gray-900">Total:</span>
-              <span class="font-bold text-lg text-gray-900">€{{ formatNumber(order.total) }}</span>
-            </div>
-          </div>
-
-          <!-- Botón de acción -->
-          <button 
-            @click="viewOrderDetails(order.id)"
-            class="w-full px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-          >
-            Ver detalles
-          </button>
         </div>
       </div>
+    </div>
 
-      <!-- Vista desktop (tabla) -->
-      <div class="hidden lg:block overflow-x-auto">
-        <table class="w-full" v-if="orders.length > 0">
+    <!-- Filters -->
+    <div class="mb-6 flex flex-wrap gap-4">
+      <select v-model="filters.status" @change="() => loadOrders()" class="border rounded px-3 py-2">
+        <option value="">All Status</option>
+        <option value="pending">Pending</option>
+        <option value="processing">Processing</option>
+        <option value="shipped">Shipped</option>
+        <option value="delivered">Delivered</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+      
+      <input 
+        v-model="filters.search" 
+        @input="debounceSearch"
+        type="text" 
+        placeholder="Search orders..."
+        class="border rounded px-3 py-2 w-64"
+      >
+      
+      <select v-if="authStore.isAdmin" v-model="filters.seller_id" @change="() => loadOrders()" class="border rounded px-3 py-2">
+        <option value="">All Sellers</option>
+        <option value="1">Super Admin</option>
+        <option value="2">Juan García Pérez</option>
+        <option value="3">María López Silva</option>
+        <option value="4">Carlos Rodríguez Martín</option>
+      </select>
+    </div>
+
+    <!-- Loading State -->
+    <div v-if="loading" class="flex justify-center items-center h-64">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+    </div>
+
+    <!-- Orders Table -->
+    <div v-else-if="!error" class="bg-white shadow rounded-lg overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
           <thead class="bg-gray-50">
             <tr>
-              <th class="text-left py-4 px-6 font-semibold text-gray-900 text-sm">Pedido</th>
-              <th class="text-left py-4 px-6 font-semibold text-gray-900 text-sm">Cliente</th>
-              <th class="text-left py-4 px-6 font-semibold text-gray-900 text-sm">Estado</th>
-              <th class="text-left py-4 px-6 font-semibold text-gray-900 text-sm">Artículos</th>
-              <th class="text-left py-4 px-6 font-semibold text-gray-900 text-sm hidden xl:table-cell">Subtotal</th>
-              <th class="text-left py-4 px-6 font-semibold text-gray-900 text-sm hidden xl:table-cell">IVA</th>
-              <th class="text-left py-4 px-6 font-semibold text-gray-900 text-sm hidden xl:table-cell">Envío</th>
-              <th class="text-left py-4 px-6 font-semibold text-gray-900 text-sm">Total</th>
-              <th class="text-left py-4 px-6 font-semibold text-gray-900 text-sm">Fecha</th>
-              <th class="text-left py-4 px-6 font-semibold text-gray-900 text-sm">Acciones</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+              <th v-if="authStore.isAdmin" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Seller</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-100">
-            <tr v-for="order in orders" :key="order.id" class="hover:bg-gray-50 transition-colors">
-              <td class="py-4 px-6 font-mono font-semibold text-blue-600">#{{ order.order_number }}</td>
-              <td class="py-4 px-6">
-                <div>
-                  <div class="font-medium text-gray-900">{{ order.customer?.name }}</div>
-                  <div class="text-sm text-gray-500">{{ order.customer?.email }}</div>
-                </div>
+          <tbody class="bg-white divide-y divide-gray-200">
+            <tr v-for="order in orders" :key="order.id" class="hover:bg-gray-50">
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm font-medium text-gray-900">{{ order.order_number }}</div>
               </td>
-              <td class="py-4 px-6">
-                <select 
-                  :value="order.status" 
-                  @change="updateOrderStatus(order.id, ($event.target as HTMLSelectElement).value)"
-                  class="px-3 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  :class="getStatusSelectClass(order.status)"
-                  :disabled="updating === order.id"
-                >
-                  <option value="pending">Pendiente</option>
-                  <option value="processing">Procesando</option>
-                  <option value="shipped">Enviado</option>
-                  <option value="delivered">Entregado</option>
-                  <option value="cancelled">Cancelado</option>
-                </select>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm text-gray-900">{{ order.customer_name || order.customer?.name || 'N/A' }}</div>
+                <div class="text-sm text-gray-500">{{ order.customer_email || order.customer?.email || 'N/A' }}</div>
               </td>
-              <td class="py-4 px-6">
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                  {{ order.items?.length || 0 }} artículos
+              <td v-if="authStore.isAdmin" class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm font-medium text-blue-600">{{ order.seller?.name || 'Sin asignar' }}</div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-center">
+                <span class="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs font-medium">
+                  {{ order.items_count || (order.items ? order.items.length : 0) }}
                 </span>
               </td>
-              <td class="py-4 px-6 text-gray-700 hidden xl:table-cell">€{{ formatNumber(order.subtotal) }}</td>
-              <td class="py-4 px-6 text-gray-700 hidden xl:table-cell">€{{ formatNumber(order.tax) }}</td>
-              <td class="py-4 px-6 text-gray-700 hidden xl:table-cell">€{{ formatNumber(order.shipping) }}</td>
-              <td class="py-4 px-6 font-bold text-lg text-gray-900">€{{ formatNumber(order.total) }}</td>
-              <td class="py-4 px-6 text-sm text-gray-500">{{ formatDate(order.created_at) }}</td>
-              <td class="py-4 px-6">
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                €{{ formatCurrency(order.total) }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <span :class="getStatusClass(order.status)" class="inline-flex px-2 py-1 text-xs font-semibold rounded-full">
+                  {{ translateStatus(order.status) }}
+                </span>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {{ formatDate(order.created_at) }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                 <button 
-                  @click="viewOrderDetails(order.id)"
-                  class="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                  @click="viewOrder(order.id)"
+                  :disabled="loadingOrderDetails"
+                  class="text-blue-600 hover:text-blue-900 disabled:opacity-50"
                 >
-                  Ver detalles
+                  {{ loadingOrderDetails ? 'Loading...' : 'View' }}
+                </button>
+                <button 
+                  @click="editOrder(order)"
+                  class="text-green-600 hover:text-green-900"
+                >
+                  Edit
                 </button>
               </td>
             </tr>
@@ -153,120 +361,145 @@
         </table>
       </div>
 
-      <div v-if="orders.length === 0" class="text-center py-12 text-gray-500">
-        <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
-        </svg>
-        <p class="text-lg">No hay pedidos registrados</p>
-      </div>
-
-      <!-- Paginación -->
-      <div v-if="pagination && pagination.last_page > 1" class="p-4 sm:p-6 border-t border-gray-200 bg-gray-50">
-        <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <button 
-            @click="loadPage(pagination.current_page - 1)"
-            :disabled="pagination.current_page <= 1"
-            class="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            Anterior
-          </button>
-          <span class="text-sm text-gray-700 order-first sm:order-none">
-            Página {{ pagination.current_page }} de {{ pagination.last_page }}
-          </span>
-          <button 
-            @click="loadPage(pagination.current_page + 1)"
-            :disabled="pagination.current_page >= pagination.last_page"
-            class="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            Siguiente
-          </button>
+      <!-- Pagination -->
+      <div v-if="pagination.last_page > 1" class="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
+        <div class="flex items-center justify-between">
+          <div class="text-sm text-gray-700">
+            Showing {{ pagination.from }} to {{ pagination.to }} of {{ pagination.total }} results
+          </div>
+          <div class="flex space-x-2">
+            <button 
+              @click="changePage(pagination.current_page - 1)"
+              :disabled="pagination.current_page === 1"
+              class="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-50"
+            >
+              Previous
+            </button>
+            <button 
+              @click="changePage(pagination.current_page + 1)"
+              :disabled="pagination.current_page === pagination.last_page"
+              class="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-50"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Modal de detalles -->
-    <div v-if="selectedOrder" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" @click="selectedOrder = null">
-      <div class="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" @click.stop>
-        <div class="p-4 sm:p-6 border-b border-gray-200">
-          <div class="flex justify-between items-start">
-            <div>
-              <h3 class="text-xl sm:text-2xl font-bold text-gray-900">Detalles del Pedido</h3>
-              <p class="text-sm sm:text-base text-gray-600 mt-1">#{{ selectedOrder.order_number }}</p>
-            </div>
-            <button @click="selectedOrder = null" class="p-2 text-gray-400 hover:text-gray-600">
+    <!-- Empty State -->
+    <div v-if="!loading && !error && orders.length === 0" class="text-center py-12">
+      <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+      </svg>
+      <h3 class="mt-2 text-sm font-medium text-gray-900">No Orders Found</h3>
+      <p class="mt-1 text-sm text-gray-500">Orders will appear here when customers make purchases.</p>
+    </div>
+
+    <!-- Order Modal -->
+    <div v-if="showModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="p-6">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-900">Order Details</h2>
+            <button @click="closeModal" class="text-gray-400 hover:text-gray-600">
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
               </svg>
             </button>
           </div>
-        </div>
-        
-        <div class="p-4 sm:p-6">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div>
-              <h4 class="font-semibold text-gray-900 mb-4">Información del cliente</h4>
-              <div class="space-y-3 text-sm">
-                <div><span class="text-gray-500">Nombre:</span> <span class="font-medium">{{ selectedOrder.customer?.name }}</span></div>
-                <div><span class="text-gray-500">Email:</span> <span class="font-medium break-all">{{ selectedOrder.customer?.email }}</span></div>
-                <div><span class="text-gray-500">Teléfono:</span> <span class="font-medium">{{ selectedOrder.customer?.phone || '-' }}</span></div>
-                <div><span class="text-gray-500">Dirección:</span> <span class="font-medium">{{ selectedOrder.customer?.address || '-' }}</span></div>
+
+          <div v-if="selectedOrder" class="space-y-6">
+            <!-- Order Info -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h3 class="text-lg font-semibold mb-4">Order Information</h3>
+                <dl class="space-y-2">
+                  <div>
+                    <dt class="text-sm font-medium text-gray-500">Order Number</dt>
+                    <dd class="text-sm text-gray-900">{{ selectedOrder.order_number }}</dd>
+                  </div>
+                  <div>
+                    <dt class="text-sm font-medium text-gray-500">Status</dt>
+                    <dd>
+                      <span :class="getStatusClass(selectedOrder.status)" class="inline-flex px-2 py-1 text-xs font-semibold rounded-full">
+                        {{ translateStatus(selectedOrder.status) }}
+                      </span>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="text-sm font-medium text-gray-500">Created</dt>
+                    <dd class="text-sm text-gray-900">{{ formatDate(selectedOrder.created_at) }}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div>
+                <h3 class="text-lg font-semibold mb-4">Customer Information</h3>
+                <dl class="space-y-2">
+                  <div>
+                    <dt class="text-sm font-medium text-gray-500">Name</dt>
+                    <dd class="text-sm text-gray-900">{{ selectedOrder.customer?.name || selectedOrder.customer_name || 'N/A' }}</dd>
+                  </div>
+                  <div>
+                    <dt class="text-sm font-medium text-gray-500">Email</dt>
+                    <dd class="text-sm text-gray-900">{{ selectedOrder.customer?.email || selectedOrder.customer_email || 'N/A' }}</dd>
+                  </div>
+                  <div v-if="authStore.isAdmin && selectedOrder.seller">
+                    <dt class="text-sm font-medium text-gray-500">Seller</dt>
+                    <dd class="text-sm text-blue-600 font-medium">{{ selectedOrder.seller?.name }}</dd>
+                  </div>
+                </dl>
               </div>
             </div>
-            
+
+            <!-- Order Items -->
             <div>
-              <h4 class="font-semibold text-gray-900 mb-4">Información del pedido</h4>
-              <div class="space-y-3 text-sm">
-                <div><span class="text-gray-500">Estado:</span> 
-                  <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" :class="getStatusClasses(selectedOrder.status)">
-                    {{ translateStatus(selectedOrder.status) }}
-                  </span>
-                </div>
-                <div><span class="text-gray-500">Fecha:</span> <span class="font-medium">{{ formatDate(selectedOrder.created_at) }}</span></div>
-                <div><span class="text-gray-500">Subtotal:</span> <span class="font-medium">€{{ formatNumber(selectedOrder.subtotal) }}</span></div>
-                <div><span class="text-gray-500">IVA:</span> <span class="font-medium">€{{ formatNumber(selectedOrder.tax) }}</span></div>
-                <div><span class="text-gray-500">Envío:</span> <span class="font-medium">€{{ formatNumber(selectedOrder.shipping) }}</span></div>
-                <div><span class="text-gray-500">Total:</span> <span class="font-bold text-lg text-green-600">€{{ formatNumber(selectedOrder.total) }}</span></div>
+              <h3 class="text-lg font-semibold mb-4">Order Items</h3>
+              <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                  <thead class="bg-gray-50">
+                    <tr>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit Price</th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody class="bg-white divide-y divide-gray-200">
+                    <tr v-for="item in selectedOrder.items" :key="item.id">
+                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ item.product_name || item.product?.name || 'N/A' }}</td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ item.quantity }}</td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">€{{ formatCurrency(item.unit_price || item.price || 0) }}</td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">€{{ formatCurrency(item.total_price || (item.quantity * (item.unit_price || item.price || 0))) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
-          </div>
-          
-          <div>
-            <h4 class="font-semibold text-gray-900 mb-4">Artículos del pedido</h4>
-            <div class="border border-gray-200 rounded-lg overflow-hidden">
-              <!-- Vista móvil de artículos -->
-              <div class="block sm:hidden">
-                <div v-for="item in selectedOrder.items" :key="item.id" class="p-4 border-b border-gray-200 last:border-b-0">
-                  <div class="font-medium text-gray-900">{{ item.product?.name }}</div>
-                  <div class="text-sm text-gray-500 mb-2">SKU: {{ item.product?.sku }}</div>
+
+            <!-- Order Summary -->
+            <div class="border-t pt-6">
+              <div class="flex justify-end">
+                <div class="w-full max-w-xs space-y-2">
                   <div class="flex justify-between text-sm">
-                    <span class="text-gray-500">{{ item.quantity }} x €{{ formatNumber(item.unit_price) }}</span>
-                    <span class="font-medium">€{{ formatNumber(item.total_price) }}</span>
+                    <span>Subtotal:</span>
+                    <span>€{{ formatCurrency(selectedOrder.subtotal || 0) }}</span>
+                  </div>
+                  <div class="flex justify-between text-sm">
+                    <span>Tax:</span>
+                    <span>€{{ formatCurrency(selectedOrder.tax || 0) }}</span>
+                  </div>
+                  <div class="flex justify-between text-sm">
+                    <span>Shipping:</span>
+                    <span>€{{ formatCurrency(selectedOrder.shipping || 0) }}</span>
+                  </div>
+                  <div class="flex justify-between text-lg font-bold border-t pt-2">
+                    <span>Total:</span>
+                    <span>€{{ formatCurrency(selectedOrder.total) }}</span>
                   </div>
                 </div>
               </div>
-              
-              <!-- Vista desktop de artículos -->
-              <table class="w-full hidden sm:table">
-                <thead class="bg-gray-50">
-                  <tr>
-                    <th class="text-left px-4 py-3 text-sm font-medium text-gray-900">Producto</th>
-                    <th class="text-center px-4 py-3 text-sm font-medium text-gray-900">Cantidad</th>
-                    <th class="text-right px-4 py-3 text-sm font-medium text-gray-900">Precio unit.</th>
-                    <th class="text-right px-4 py-3 text-sm font-medium text-gray-900">Total</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200">
-                  <tr v-for="item in selectedOrder.items" :key="item.id">
-                    <td class="px-4 py-3">
-                      <div class="font-medium text-gray-900">{{ item.product?.name }}</div>
-                      <div class="text-sm text-gray-500">SKU: {{ item.product?.sku }}</div>
-                    </td>
-                    <td class="px-4 py-3 text-center">{{ item.quantity }}</td>
-                    <td class="px-4 py-3 text-right">€{{ formatNumber(item.unit_price) }}</td>
-                    <td class="px-4 py-3 text-right font-medium">€{{ formatNumber(item.total_price) }}</td>
-                  </tr>
-                </tbody>
-              </table>
             </div>
           </div>
         </div>
@@ -274,132 +507,3 @@
     </div>
   </div>
 </template>
-
-<script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { dashboardApi, type Order } from '@/services/api'
-
-const loading = ref(true)
-const orders = ref<Order[]>([])
-const pagination = ref<any>(null)
-const selectedOrder = ref<Order | null>(null)
-const updating = ref<number | null>(null)
-
-const formatNumber = (num: number): string => {
-  return new Intl.NumberFormat('es-ES', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(num)
-}
-
-const formatDate = (dateString: string): string => {
-  return new Intl.DateTimeFormat('es-ES', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(new Date(dateString))
-}
-
-const translateStatus = (status: string): string => {
-  const translations: Record<string, string> = {
-    pending: 'Pendiente',
-    processing: 'Procesando',
-    shipped: 'Enviado',
-    delivered: 'Entregado',
-    cancelled: 'Cancelado'
-  }
-  return translations[status] || status
-}
-
-const getStatusClasses = (status: string): string => {
-  const classes: Record<string, string> = {
-    pending: 'bg-yellow-100 text-yellow-800',
-    processing: 'bg-blue-100 text-blue-800',
-    shipped: 'bg-green-100 text-green-800',
-    delivered: 'bg-emerald-100 text-emerald-800',
-    cancelled: 'bg-red-100 text-red-800'
-  }
-  return classes[status] || 'bg-gray-100 text-gray-800'
-}
-
-const getStatusSelectClass = (status: string): string => {
-  const classes: Record<string, string> = {
-    pending: 'border-l-4 border-l-yellow-500',
-    processing: 'border-l-4 border-l-blue-500',
-    shipped: 'border-l-4 border-l-green-500',
-    delivered: 'border-l-4 border-l-emerald-500',
-    cancelled: 'border-l-4 border-l-red-500'
-  }
-  return classes[status] || ''
-}
-
-const loadPage = async (page: number) => {
-  try {
-    loading.value = true
-    const response = await dashboardApi.getOrders(page)
-    orders.value = response.data
-    pagination.value = response
-  } catch (error) {
-    console.error('Error loading orders:', error)
-  } finally {
-    loading.value = false
-  }
-}
-
-const updateOrderStatus = async (orderId: number, newStatus: string) => {
-  try {
-    updating.value = orderId
-    await dashboardApi.updateOrderStatus(orderId, newStatus)
-    
-    // Actualizar el estado local
-    const order = orders.value.find(o => o.id === orderId)
-    if (order) {
-      order.status = newStatus
-    }
-  } catch (error) {
-    console.error('Error updating order status:', error)
-    // Recargar datos en caso de error
-    loadPage(pagination.value?.current_page || 1)
-  } finally {
-    updating.value = null
-  }
-}
-
-const viewOrderDetails = async (orderId: number) => {
-  try {
-    const order = await dashboardApi.getOrder(orderId)
-    selectedOrder.value = order
-  } catch (error) {
-    console.error('Error loading order details:', error)
-  }
-}
-
-onMounted(() => {
-  loadPage(1)
-})
-</script>
-
-<style scoped>
-.spinner {
-  border: 2px solid #f3f4f6;
-  border-top: 2px solid #10b981;
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* Responsive breakpoints */
-@media (max-width: 1280px) {
-  table {
-    min-width: 800px;
-  }
-}
-</style>

@@ -1,496 +1,360 @@
 <template>
-  <div class="p-4 sm:p-6 lg:p-8 max-w-none">
-    <!-- Header -->
-    <div class="bg-white p-4 sm:p-6 lg:p-8 rounded-2xl shadow-sm mb-6 sm:mb-8 border-l-4 border-l-blue-500">
-      <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2 sm:mb-3">Gestión de Productos</h1>
-      <p class="text-gray-600 text-base sm:text-lg">Administra tu catálogo completo de productos</p>
-    </div>
-
-    <div v-if="loading" class="flex justify-center items-center h-64 text-gray-500">
-      <div class="spinner mr-3"></div>
-      <span class="text-lg">Cargando productos...</span>
-    </div>
-
-    <div v-else class="bg-white rounded-2xl shadow-sm overflow-hidden">
-      <div class="p-4 sm:p-6 lg:p-8 border-b border-gray-200">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-          <div>
-            <h3 class="text-xl sm:text-2xl font-bold text-gray-900">Lista de Productos</h3>
-            <p class="text-gray-500 mt-1 text-sm sm:text-base">Total: {{ pagination?.total || 0 }} productos</p>
-          </div>
-          <button 
-            @click="openModal()"
-            class="w-full sm:w-auto px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-medium"
-          >
-            Añadir Producto
-          </button>
-        </div>
+  <div class="p-6">
+    <div class="mb-8 flex justify-between items-center">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900">Products</h1>
+        <p class="text-gray-600">
+          {{ authStore.isAdmin ? 'Manage all products from all sellers' : 'Manage your products' }}
+        </p>
       </div>
+      <button class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+        </svg>
+        <span>New Product</span>
+      </button>
+    </div>
 
-      <!-- Vista móvil (cards) -->
-      <div class="block sm:hidden p-4 space-y-4" v-if="products.length > 0">
-        <div v-for="product in products" :key="product.id" class="bg-white border border-gray-200 rounded-lg p-4">
-          <div class="flex items-start space-x-3">
-            <img 
-              :src="product.image_url || 'https://via.placeholder.com/150'" 
-              :alt="product.name" 
-              class="w-20 h-20 rounded-lg object-cover flex-shrink-0 bg-gray-100"
-              @error="(e) => (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150'"
+    <!-- Error Display -->
+    <div v-if="error" class="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <div class="ml-3">
+          <h3 class="text-sm font-medium text-red-800">Error Loading Products</h3>
+          <div class="mt-2 text-sm text-red-700">
+            <p>{{ error }}</p>
+          </div>
+          <div class="mt-3">
+            <button
+              @click="retryLoad"
+              class="bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1 rounded text-sm font-medium"
             >
-            <div class="flex-1 min-w-0">
-              <h4 class="font-semibold text-gray-900 truncate">{{ product.name }}</h4>
-              <p class="text-sm text-gray-500 mb-1">SKU: {{ product.sku }}</p>
-              <p class="text-sm text-gray-500">{{ product.category || 'Sin categoría' }}</p>
-              <p class="font-bold text-lg text-gray-900 mt-1">€{{ formatNumber(product.price) }}</p>
-            </div>
-          </div>
-          
-          <div class="mt-4 flex items-center justify-between">
-            <div class="flex items-center space-x-2">
-              <span :class="product.stock <= 10 ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50'" 
-                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium">
-                {{ product.stock }} unidades
-              </span>
-              <button
-                @click="toggleProductStatus(product)"
-                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer transition-colors"
-                :class="product.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
-              >
-                {{ product.active ? 'Activo' : 'Inactivo' }}
-              </button>
-            </div>
-            
-            <div class="flex items-center space-x-2">
-              <button 
-                @click="openModal(product)"
-                class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-              >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-                </svg>
-              </button>
-              <button 
-                @click="deleteProduct(product)"
-                class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                </svg>
-              </button>
-            </div>
+              Try Again
+            </button>
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- Vista desktop (tabla) -->
-      <div class="hidden sm:block overflow-x-auto">
-        <table class="w-full" v-if="products.length > 0">
-          <thead class="bg-gray-50">
-            <tr>
-              <th class="text-left py-4 px-6 font-semibold text-gray-900 text-sm">Producto</th>
-              <th class="text-left py-4 px-6 font-semibold text-gray-900 text-sm">SKU</th>
-              <th class="text-left py-4 px-6 font-semibold text-gray-900 text-sm">Categoría</th>
-              <th class="text-left py-4 px-6 font-semibold text-gray-900 text-sm">Precio</th>
-              <th class="text-left py-4 px-6 font-semibold text-gray-900 text-sm">Stock</th>
-              <th class="text-left py-4 px-6 font-semibold text-gray-900 text-sm">Estado</th>
-              <th class="text-left py-4 px-6 font-semibold text-gray-900 text-sm">Acciones</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100">
-            <tr v-for="product in products" :key="product.id" class="hover:bg-gray-50 transition-colors">
-              <td class="py-4 px-6">
-                <div class="flex items-center space-x-4">
-                  <img 
-                    :src="product.image_url || 'https://via.placeholder.com/150'" 
-                    :alt="product.name" 
-                    class="w-16 h-16 rounded-xl object-cover flex-shrink-0 bg-gray-100"
-                    @error="(e) => (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150'"
-                  >
-                  <div class="min-w-0 flex-1">
-                    <h4 class="font-semibold text-gray-900 truncate">{{ product.name }}</h4>
-                    <p class="text-sm text-gray-500 truncate">{{ product.description?.substring(0, 50) }}{{ product.description && product.description.length > 50 ? '...' : '' }}</p>
-                  </div>
-                </div>
-              </td>
-              <td class="py-4 px-6 font-mono text-sm text-blue-600">{{ product.sku }}</td>
-              <td class="py-4 px-6">
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                  {{ product.category || 'Sin categoría' }}
-                </span>
-              </td>
-              <td class="py-4 px-6 font-bold text-lg text-gray-900">€{{ formatNumber(product.price) }}</td>
-              <td class="py-4 px-6">
-                <span 
-                  :class="product.stock <= 10 ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50'" 
-                  class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                >
-                  {{ product.stock }} unidades
-                </span>
-              </td>
-              <td class="py-4 px-6">
-                <button
-                  @click="toggleProductStatus(product)"
-                  class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer transition-colors"
-                  :class="product.active ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-red-100 text-red-800 hover:bg-red-200'"
-                >
-                  {{ product.active ? 'Activo' : 'Inactivo' }}
-                </button>
-              </td>
-              <td class="py-4 px-6">
-                <div class="flex items-center space-x-2">
-                  <button 
-                    @click="openModal(product)"
-                    class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                    title="Editar"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-                    </svg>
-                  </button>
-                  <button 
-                    @click="deleteProduct(product)"
-                    class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Eliminar"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                    </svg>
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+    <!-- Filters -->
+    <div class="mb-6 flex flex-wrap gap-4">
+      <select v-model="filters.category" @change="() => loadProducts()" class="border rounded px-3 py-2">
+        <option value="">All Categories</option>
+        <option value="Electronics">Electronics</option>
+        <option value="Fashion">Fashion</option>
+        <option value="Gaming">Gaming</option>
+        <option value="Audio">Audio</option>
+        <option value="Laptops">Laptops</option>
+        <option value="Smartphones">Smartphones</option>
+        <option value="Tablets">Tablets</option>
+        <option value="Wearables">Wearables</option>
+      </select>
+      
+      <select v-model="filters.active" @change="() => loadProducts()" class="border rounded px-3 py-2">
+        <option value="">All Status</option>
+        <option value="true">Active</option>
+        <option value="false">Inactive</option>
+      </select>
+      
+      <input 
+        v-model="filters.search" 
+        @input="debounceSearch"
+        type="text" 
+        placeholder="Search products..."
+        class="border rounded px-3 py-2 w-64"
+      >
+    </div>
 
-        <div v-else class="text-center py-12 text-gray-500">
-          <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <!-- Loading State -->
+    <div v-if="loading" class="flex justify-center items-center h-64">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+    </div>
+
+    <!-- Products Grid -->
+    <div v-else-if="!error" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div v-for="product in products" :key="product.id" class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+        <!-- Product Image -->
+        <div class="h-48 bg-gray-200 flex items-center justify-center">
+          <img 
+            v-if="product.image_url" 
+            :src="product.image_url" 
+            :alt="product.name"
+            class="w-full h-full object-cover"
+            @error="handleImageError"
+          >
+          <svg v-else class="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
           </svg>
-          <p class="text-lg">No hay productos registrados</p>
         </div>
-      </div>
 
-      <!-- Paginación -->
-      <div v-if="pagination && pagination.last_page > 1" class="p-6 border-t border-gray-200 bg-gray-50">
-        <div class="flex items-center justify-between">
-          <button 
-            @click="loadPage(pagination.current_page - 1)"
-            :disabled="pagination.current_page <= 1"
-            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            Anterior
-          </button>
-          <span class="text-sm text-gray-700">
-            Página {{ pagination.current_page }} de {{ pagination.last_page }}
-          </span>
-          <button 
-            @click="loadPage(pagination.current_page + 1)"
-            :disabled="pagination.current_page >= pagination.last_page"
-            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            Siguiente
-          </button>
+        <!-- Product Info -->
+        <div class="p-4">
+          <div class="flex justify-between items-start mb-2">
+            <h3 class="text-lg font-semibold text-gray-900 truncate">{{ product.name }}</h3>
+            <span :class="product.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'" 
+                  class="px-2 py-1 text-xs font-semibold rounded-full">
+              {{ product.active ? 'Active' : 'Inactive' }}
+            </span>
+          </div>
+          
+          <p class="text-sm text-gray-600 mb-3 line-clamp-2">{{ product.description }}</p>
+          
+          <div class="space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-gray-500">Price:</span>
+              <span class="text-lg font-bold text-green-600">€{{ formatCurrency(product.price) }}</span>
+            </div>
+            
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-gray-500">Stock:</span>
+              <span :class="getStockClass(product.stock)" class="px-2 py-1 text-xs font-semibold rounded-full">
+                {{ product.stock }} units
+              </span>
+            </div>
+            
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-gray-500">SKU:</span>
+              <span class="text-sm font-mono text-gray-900">{{ product.sku }}</span>
+            </div>
+            
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-gray-500">Category:</span>
+              <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full">{{ product.category }}</span>
+            </div>
+            
+            <!-- Seller info (only for admin) -->
+            <div v-if="authStore.isAdmin && product.seller" class="flex justify-between items-center border-t pt-2 mt-2">
+              <span class="text-sm text-gray-500">Seller:</span>
+              <span class="text-sm font-medium text-blue-600">{{ product.seller.name }}</span>
+            </div>
+          </div>
+          
+          <!-- Actions -->
+          <div class="mt-4 flex space-x-2">
+            <button 
+              @click="viewProduct(product)"
+              class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-2 rounded text-sm font-medium transition-colors"
+            >
+              View
+            </button>
+            <button 
+              v-if="canEditProduct(product)"
+              @click="editProduct(product)"
+              class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-medium transition-colors"
+            >
+              Edit
+            </button>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Modal de Producto -->
-    <div v-if="showModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" @click.self="closeModal">
-      <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" @click.stop>
-        <div class="p-6 border-b border-gray-200">
-          <h3 class="text-2xl font-bold text-gray-900">{{ editingProduct.id ? 'Editar Producto' : 'Nuevo Producto' }}</h3>
-        </div>
+    <!-- Pagination -->
+    <div v-if="pagination.last_page > 1" class="mt-8 flex justify-center">
+      <div class="flex space-x-2">
+        <button 
+          @click="changePage(pagination.current_page - 1)"
+          :disabled="pagination.current_page === 1"
+          class="px-4 py-2 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+        >
+          Previous
+        </button>
         
-        <form @submit.prevent="saveProduct" class="p-6 space-y-6">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="md:col-span-2">
-              <label class="block text-sm font-medium text-gray-700 mb-2">Nombre del producto *</label>
-              <input 
-                v-model="editingProduct.name" 
-                type="text" 
-                required
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Ej: Camiseta deportiva"
-              >
-            </div>
-            
-            <div class="md:col-span-2">
-              <label class="block text-sm font-medium text-gray-700 mb-2">Descripción</label>
-              <textarea 
-                v-model="editingProduct.description" 
-                rows="3"
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Descripción detallada del producto"
-              ></textarea>
-            </div>
-            
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">SKU *</label>
-              <input 
-                v-model="editingProduct.sku" 
-                type="text"
-                required
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Ej: PROD-001"
-              >
-            </div>
-            
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Categoría</label>
-              <input 
-                v-model="editingProduct.category" 
-                type="text"
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Ej: Ropa deportiva"
-              >
-            </div>
-            
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Precio (€) *</label>
-              <input 
-                v-model.number="editingProduct.price" 
-                type="number"
-                step="0.01"
-                min="0"
-                required
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="0.00"
-              >
-            </div>
-            
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Stock *</label>
-              <input 
-                v-model.number="editingProduct.stock" 
-                type="number"
-                min="0"
-                required
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="0"
-              >
-            </div>
-            
-            <div class="md:col-span-2">
-              <label class="block text-sm font-medium text-gray-700 mb-2">URL de imagen</label>
-              <input 
-                v-model="editingProduct.image_url" 
-                type="url"
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="https://ejemplo.com/imagen.jpg"
-              >
-            </div>
-            
-            <div class="md:col-span-2">
-              <label class="flex items-center space-x-3">
-                <input 
-                  v-model="editingProduct.active" 
-                  type="checkbox"
-                  class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                >
-                <span class="text-sm font-medium text-gray-700">Producto activo</span>
-              </label>
-            </div>
-          </div>
-          
-          <div class="flex justify-end space-x-3 pt-6 border-t border-gray-200">
-            <button 
-              type="button"
-              @click="closeModal"
-              class="px-6 py-3 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors font-medium"
-            >
-              Cancelar
-            </button>
-            <button 
-              type="submit"
-              :disabled="saving"
-              class="px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {{ saving ? 'Guardando...' : 'Guardar' }}
-            </button>
-          </div>
-        </form>
+        <span class="px-4 py-2 bg-blue-600 text-white rounded">
+          {{ pagination.current_page }} of {{ pagination.last_page }}
+        </span>
+        
+        <button 
+          @click="changePage(pagination.current_page + 1)"
+          :disabled="pagination.current_page === pagination.last_page"
+          class="px-4 py-2 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+        >
+          Next
+        </button>
       </div>
     </div>
 
-    <!-- Modal de Confirmación de Eliminación -->
-    <div v-if="productToDelete" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" @click="productToDelete = null">
-      <div class="bg-white rounded-2xl max-w-md w-full p-6" @click.stop>
-        <div class="text-center">
-          <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
-            <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.268 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
-            </svg>
-          </div>
-          <h3 class="text-lg font-bold text-gray-900 mb-2">Eliminar Producto</h3>
-          <p class="text-gray-500 mb-6">¿Estás seguro de que deseas eliminar <strong>{{ productToDelete.name }}</strong>? Esta acción no se puede deshacer.</p>
-          
-          <div class="flex justify-center space-x-3">
-            <button 
-              @click="productToDelete = null"
-              class="px-6 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-            >
-              Cancelar
-            </button>
-            <button 
-              @click="confirmDelete"
-              class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-            >
-              Eliminar
-            </button>
-          </div>
-        </div>
-      </div>
+    <!-- Empty State -->
+    <div v-if="!loading && !error && products.length === 0" class="text-center py-12">
+      <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+      </svg>
+      <h3 class="mt-2 text-sm font-medium text-gray-900">No Products Found</h3>
+      <p class="mt-1 text-sm text-gray-500">Get started by creating a new product.</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, reactive } from 'vue'
-import { dashboardApi, type Product } from '@/services/api'
+import { useAuthStore } from '@/stores/auth'
+import { dashboardApi, handleAPIError } from '@/services/api'
 
-const loading = ref(true)
-const products = ref<Product[]>([])
-const pagination = ref<any>(null)
-const showModal = ref(false)
-const productToDelete = ref<Product | null>(null)
-const saving = ref(false)
-
-const editingProduct = reactive<Partial<Product>>({
-  name: '',
-  description: '',
-  price: 0,
-  stock: 0,
-  sku: '',
-  category: '',
-  image_url: '',
-  active: true
-})
-
-const formatNumber = (num: number): string => {
-  return new Intl.NumberFormat('es-ES', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(num)
+// Types - Puedes importarlos desde types/index.ts si los tienes
+interface Product {
+  id: number
+  name: string
+  description: string
+  price: number
+  stock: number
+  sku: string
+  category: string
+  active: boolean
+  image_url?: string
+  seller?: {
+    id: number
+    name: string
+  }
 }
 
-const loadPage = async (page: number) => {
+interface Pagination {
+  current_page: number
+  last_page: number
+  per_page: number
+  total: number
+  from: number
+  to: number
+}
+
+const authStore = useAuthStore()
+
+// State
+const loading = ref<boolean>(true)
+const products = ref<Product[]>([])
+const pagination = ref<Pagination>({
+  current_page: 1,
+  last_page: 1,
+  per_page: 12,
+  total: 0,
+  from: 0,
+  to: 0
+})
+const error = ref<string>('')
+
+// Filters
+const filters = reactive({
+  category: '',
+  active: '',
+  search: ''
+})
+
+let searchTimeout: number | null = null
+
+// Enhanced load products using new API service
+const loadProducts = async (page: number = 1): Promise<void> => {
   try {
     loading.value = true
-    const response = await dashboardApi.getProducts(page)
-    products.value = response.data
-    pagination.value = response
-  } catch (error) {
-    console.error('Error loading products:', error)
+    error.value = ''
+    
+    const params: any = { page }
+    
+    if (filters.category) params.category = filters.category
+    if (filters.active) params.active = filters.active
+    if (filters.search) params.search = filters.search
+    
+    console.log('Loading products with params:', params)
+    
+    const response = await dashboardApi.getProducts(params)
+    
+    if (response.success && response.data) {
+      const data = response.data as any
+      products.value = data.data || []
+      pagination.value = {
+        current_page: data.current_page || 1,
+        last_page: data.last_page || 1,
+        per_page: data.per_page || 12,
+        total: data.total || 0,
+        from: data.from || 0,
+        to: data.to || 0
+      }
+      console.log('Products loaded successfully:', products.value.length)
+    } else {
+      error.value = handleAPIError(response, 'Failed to load products')
+      products.value = []
+    }
+  } catch (err) {
+    console.error('Unexpected error loading products:', err)
+    error.value = 'An unexpected error occurred while loading products'
+    products.value = []
   } finally {
     loading.value = false
   }
 }
 
-const openModal = (product?: Product) => {
-  if (product) {
-    Object.assign(editingProduct, product)
-  } else {
-    Object.assign(editingProduct, {
-      name: '',
-      description: '',
-      price: 0,
-      stock: 0,
-      sku: '',
-      category: '',
-      image_url: '',
-      active: true
-    })
+// Debounced search
+const debounceSearch = (): void => {
+  if (searchTimeout) {
+    clearTimeout(searchTimeout)
   }
-  showModal.value = true
+  searchTimeout = setTimeout(() => {
+    loadProducts()
+  }, 500)
 }
 
-const closeModal = () => {
-  showModal.value = false
-  Object.assign(editingProduct, {
-    name: '',
-    description: '',
-    price: 0,
-    stock: 0,
-    sku: '',
-    category: '',
-    image_url: '',
-    active: true
-  })
-}
-
-const saveProduct = async () => {
-  try {
-    saving.value = true
-    
-    if (editingProduct.id) {
-      // Actualizar producto existente
-      await dashboardApi.updateProduct(editingProduct.id, editingProduct)
-    } else {
-      // Crear nuevo producto
-      await dashboardApi.createProduct(editingProduct)
-    }
-    
-    closeModal()
-    // Recargar la página actual
-    loadPage(pagination.value?.current_page || 1)
-  } catch (error: any) {
-    console.error('Error saving product:', error)
-    alert(error.response?.data?.message || 'Error al guardar el producto. Por favor, intenta de nuevo.')
-  } finally {
-    saving.value = false
+// Change page
+const changePage = (page: number): void => {
+  if (page >= 1 && page <= pagination.value.last_page) {
+    loadProducts(page)
   }
 }
 
-const toggleProductStatus = async (product: Product) => {
-  try {
-    await dashboardApi.updateProduct(product.id, { active: !product.active })
-    product.active = !product.active
-  } catch (error) {
-    console.error('Error updating product status:', error)
-    // Recargar en caso de error
-    loadPage(pagination.value?.current_page || 1)
-  }
+// Check if user can edit product
+const canEditProduct = (product: Product): boolean => {
+  if (authStore.isAdmin) return true
+  return product.seller?.id === authStore.user?.id
 }
 
-const deleteProduct = (product: Product) => {
-  productToDelete.value = product
+// Actions
+const viewProduct = (product: Product): void => {
+  console.log('View product:', product)
+  // TODO: Implement view product modal
 }
 
-const confirmDelete = async () => {
-  if (!productToDelete.value) return
-  
-  try {
-    await dashboardApi.deleteProduct(productToDelete.value.id)
-    productToDelete.value = null
-    // Recargar la página actual
-    loadPage(pagination.value?.current_page || 1)
-  } catch (error) {
-    console.error('Error deleting product:', error)
-    alert('Error al eliminar el producto. Por favor, intenta de nuevo.')
-  }
+const editProduct = (product: Product): void => {
+  console.log('Edit product:', product)
+  // TODO: Implement edit product modal
+}
+
+// Handle image error
+const handleImageError = (event: Event): void => {
+  const img = event.target as HTMLImageElement
+  img.style.display = 'none'
+}
+
+// Retry loading
+const retryLoad = (): void => {
+  loadProducts()
+}
+
+// Utility functions
+const formatCurrency = (amount: number): string => {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(amount)
+}
+
+const getStockClass = (stock: number): string => {
+  if (stock === 0) return 'bg-red-100 text-red-800'
+  if (stock <= 10) return 'bg-yellow-100 text-yellow-800'
+  return 'bg-green-100 text-green-800'
 }
 
 onMounted(() => {
-  loadPage(1)
+  loadProducts()
 })
 </script>
 
 <style scoped>
-.spinner {
-  border: 2px solid #f3f4f6;
-  border-top: 2px solid #3b82f6;
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-table {
-  min-width: 900px;
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 </style>

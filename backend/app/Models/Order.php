@@ -9,10 +9,15 @@ class Order extends Model
 {
     use HasFactory;
 
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
     protected $fillable = [
-        'user_id',
-        'customer_id',
         'order_number',
+        'user_id',        // Seller ID (based on your migration)
+        'customer_id',    // Customer ID
         'status',
         'subtotal',
         'tax',
@@ -23,28 +28,24 @@ class Order extends Model
         'delivered_at',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'subtotal' => 'decimal:2',
-            'tax' => 'decimal:2',
-            'shipping' => 'decimal:2',
-            'total' => 'decimal:2',
-            'shipped_at' => 'datetime',
-            'delivered_at' => 'datetime',
-        ];
-    }
-
     /**
-     * Relationship with user (owner)
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
      */
-    public function user()
-    {
-        return $this->belongsTo(User::class);
-    }
+    protected $casts = [
+        'subtotal' => 'decimal:2',
+        'tax' => 'decimal:2',
+        'shipping' => 'decimal:2',
+        'total' => 'decimal:2',
+        'shipped_at' => 'datetime',
+        'delivered_at' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+    ];
 
     /**
-     * Relationship with customer
+     * Relationship: Order belongs to a customer
      */
     public function customer()
     {
@@ -52,7 +53,23 @@ class Order extends Model
     }
 
     /**
-     * Relationship with order items
+     * Relationship: Order belongs to a seller (User) via user_id
+     */
+    public function seller()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /**
+     * Alias for seller relationship for backward compatibility
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /**
+     * Relationship: Order has many order items
      */
     public function items()
     {
@@ -60,38 +77,26 @@ class Order extends Model
     }
 
     /**
-     * Scope para filtrar por usuario actual
+     * Scope: Only completed orders
      */
-    public function scopeForUser($query, $userId)
+    public function scopeCompleted($query)
     {
-        return $query->where('user_id', $userId);
+        return $query->where('status', 'delivered');
     }
 
     /**
-     * Scope para pedidos por estado
+     * Scope: Only pending orders
      */
-    public function scopeByStatus($query, $status)
+    public function scopePending($query)
     {
-        return $query->where('status', $status);
+        return $query->where('status', 'pending');
     }
 
     /**
-     * Scope para pedidos recientes
+     * Scope: Exclude cancelled orders
      */
-    public function scopeRecent($query, $days = 30)
+    public function scopeNotCancelled($query)
     {
-        return $query->where('created_at', '>=', now()->subDays($days));
-    }
-
-    /**
-     * Generate unique order number
-     */
-    public static function generateOrderNumber()
-    {
-        do {
-            $number = 'ORD-' . date('Y') . '-' . str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT);
-        } while (self::where('order_number', $number)->exists());
-
-        return $number;
+        return $query->where('status', '!=', 'cancelled');
     }
 }

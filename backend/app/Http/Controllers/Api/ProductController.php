@@ -46,6 +46,34 @@ class ProductController extends Controller
         $products = $query->orderBy('created_at', 'desc')
                          ->paginate(15);
         
+        // Transformar datos para incluir info del vendedor si es admin
+        $products->getCollection()->transform(function ($product) use ($isAdmin) {
+            $data = [
+                'id' => $product->id,
+                'name' => $product->name,
+                'description' => $product->description,
+                'price' => (float)$product->price,
+                'stock' => $product->stock,
+                'sku' => $product->sku,
+                'category' => $product->category,
+                'image_url' => $product->image_url,
+                'active' => $product->active,
+                'created_at' => $product->created_at->format('Y-m-d H:i:s'),
+                'updated_at' => $product->updated_at->format('Y-m-d H:i:s'),
+            ];
+            
+            // Incluir info del vendedor si es admin
+            if ($isAdmin) {
+                $data['seller'] = [
+                    'id' => $product->user->id ?? null,
+                    'name' => $product->user->name ?? 'Sin asignar',
+                    'email' => $product->user->email ?? '',
+                ];
+            }
+            
+            return $data;
+        });
+        
         return response()->json($products);
     }
 
