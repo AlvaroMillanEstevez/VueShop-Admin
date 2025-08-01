@@ -18,7 +18,7 @@ class OrderController extends Controller
     {
         try {
             $query = Order::query()
-                ->with(['customer', 'seller']); // Load both customer and seller relationships
+                ->with(['customer', 'seller', 'items']); // Added items to calculate totals
             
             // Apply filters
             if ($request->filled('status')) {
@@ -58,6 +58,14 @@ class OrderController extends Controller
                 $customer = $order->customer;
                 $seller = $order->seller; // This is the user who created the order (user_id)
                 
+                // Calculate total from items if order total is 0 or null
+                $calculatedTotal = $order->total;
+                if (($calculatedTotal == 0 || $calculatedTotal === null) && $order->items) {
+                    $calculatedTotal = $order->items->sum(function ($item) {
+                        return $item->quantity * ($item->unit_price ?? $item->price ?? 0);
+                    });
+                }
+                
                 return [
                     'id' => $order->id,
                     'order_number' => $order->order_number,
@@ -74,7 +82,7 @@ class OrderController extends Controller
                         'email' => $seller->email
                     ] : null,
                     'items_count' => $order->items ? $order->items->count() : 0,
-                    'total' => (float) $order->total,
+                    'total' => (float) $calculatedTotal,
                     'status' => $order->status,
                     'created_at' => $order->created_at,
                     'updated_at' => $order->updated_at,
@@ -112,7 +120,7 @@ class OrderController extends Controller
     public function show(Request $request, $id): JsonResponse
     {
         try {
-            $query = Order::with(['customer', 'items']);
+            $query = Order::with(['customer', 'items', 'items.product']);
             
             // Check user permissions
             $user = $request->user();
@@ -121,6 +129,22 @@ class OrderController extends Controller
             }
             
             $order = $query->findOrFail($id);
+            
+            // Calculate totals from items if not set
+            $subtotal = $order->subtotal;
+            $total = $order->total;
+            
+            if (($subtotal == 0 || $subtotal === null) && $order->items) {
+                $subtotal = $order->items->sum(function ($item) {
+                    return $item->quantity * ($item->unit_price ?? $item->price ?? 0);
+                });
+            }
+            
+            if (($total == 0 || $total === null)) {
+                $tax = (float) ($order->tax ?? 0);
+                $shipping = (float) ($order->shipping ?? 0);
+                $total = $subtotal + $tax + $shipping;
+            }
             
             // Transform order data
             $orderData = [
@@ -132,18 +156,19 @@ class OrderController extends Controller
                     'email' => $order->customer->email
                 ] : null,
                 'items' => $order->items ? $order->items->map(function ($item) {
+                    $unitPrice = $item->unit_price ?? $item->price ?? 0;
                     return [
                         'id' => $item->id,
-                        'product_name' => $item->product ? $item->product->name : 'N/A',
+                        'product_name' => $item->product ? $item->product->name : ($item->product_name ?? 'N/A'),
                         'quantity' => $item->quantity,
-                        'unit_price' => (float) $item->unit_price,
-                        'total_price' => (float) $item->total_price,
+                        'unit_price' => (float) $unitPrice,
+                        'total_price' => (float) ($item->total_price ?? ($item->quantity * $unitPrice)),
                     ];
                 }) : [],
-                'subtotal' => (float) $order->subtotal,
-                'tax' => (float) $order->tax,
-                'shipping' => (float) $order->shipping,
-                'total' => (float) $order->total,
+                'subtotal' => (float) $subtotal,
+                'tax' => (float) ($order->tax ?? 0),
+                'shipping' => (float) ($order->shipping ?? 0),
+                'total' => (float) $total,
                 'status' => $order->status,
                 'notes' => $order->notes,
                 'created_at' => $order->created_at,
@@ -188,36 +213,47 @@ class OrderController extends Controller
                 'items.*.product_id' => 'required|exists:products,id',
                 'items.*.quantity' => 'required|integer|min:1',
                 'items.*.unit_price' => 'required|numeric|min:0',
-                'subtotal' => 'required|numeric|min:0',
+                'subtotal' => 'nullable|numeric|min:0',
                 'tax' => 'nullable|numeric|min:0',
                 'shipping' => 'nullable|numeric|min:0',
-                'total' => 'required|numeric|min:0',
+                'total' => 'nullable|numeric|min:0',
                 'notes' => 'nullable|string|max:1000',
             ]);
             
+            // Calculate totals if not provided
+            $itemsSubtotal = collect($request->items)->sum(function ($item) {
+                return $item['quantity'] * $item['unit_price'];
+            });
+            
+            $subtotal = $request->subtotal ?? $itemsSubtotal;
+            $tax = $request->tax ?? 0;
+            $shipping = $request->shipping ?? 0;
+            $total = $request->total ?? ($subtotal + $tax + $shipping);
+            
             // Generate order number
-            $orderNumber = 'ORD-' . strtoupper(uniqid());
+            $orderNumber = 'ORD-' . date('y') . date('m') . '-' . str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT);
             
             // Create order
             $order = Order::create([
                 'order_number' => $orderNumber,
                 'user_id' => $user->id, // Seller ID
                 'customer_id' => $request->customer_id,
-                'subtotal' => $request->subtotal,
-                'tax' => $request->tax ?? 0,
-                'shipping' => $request->shipping ?? 0,
-                'total' => $request->total,
+                'subtotal' => $subtotal,
+                'tax' => $tax,
+                'shipping' => $shipping,
+                'total' => $total,
                 'status' => 'pending',
                 'notes' => $request->notes,
             ]);
             
             // Create order items
             foreach ($request->items as $item) {
+                $itemTotal = $item['quantity'] * $item['unit_price'];
                 $order->items()->create([
                     'product_id' => $item['product_id'],
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['unit_price'],
-                    'total_price' => $item['quantity'] * $item['unit_price'],
+                    'total_price' => $itemTotal,
                 ]);
             }
             
@@ -395,6 +431,61 @@ class OrderController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to delete order',
+                'error' => app()->environment('local') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
+    }
+    
+    /**
+     * Recalculate totals for existing orders (utility method)
+     */
+    public function recalculateTotals(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+            
+            if (!$user->is_admin) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only admins can recalculate totals'
+                ], 403);
+            }
+            
+            $orders = Order::with('items')->get();
+            $updated = 0;
+            
+            foreach ($orders as $order) {
+                if ($order->items && $order->items->count() > 0) {
+                    $subtotal = $order->items->sum(function ($item) {
+                        return $item->quantity * ($item->unit_price ?? $item->price ?? 0);
+                    });
+                    
+                    $tax = (float) ($order->tax ?? 0);
+                    $shipping = (float) ($order->shipping ?? 0);
+                    $total = $subtotal + $tax + $shipping;
+                    
+                    if ($order->total != $total || $order->subtotal != $subtotal) {
+                        $order->update([
+                            'subtotal' => $subtotal,
+                            'total' => $total
+                        ]);
+                        $updated++;
+                    }
+                }
+            }
+            
+            return response()->json([
+                'success' => true,
+                'message' => "Recalculated totals for {$updated} orders",
+                'updated_count' => $updated
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error recalculating totals: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to recalculate totals',
                 'error' => app()->environment('local') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }

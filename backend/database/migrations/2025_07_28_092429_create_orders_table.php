@@ -15,6 +15,9 @@ return new class extends Migration {
             $table->string('status')->default('pending'); // ejemplo de estado
             $table->decimal('total', 10, 2);
             $table->string('notes')->nullable();
+            $table->decimal('subtotal', 10, 2)->default(0);
+            $table->decimal('tax', 10, 2)->default(0);
+            $table->decimal('shipping', 10, 2)->default(0);
             $table->timestamp('shipped_at')->nullable();
             $table->timestamp('delivered_at')->nullable();
             $table->timestamps();

@@ -55,6 +55,8 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/orders', [OrderController::class, 'store']);
         Route::put('/orders/{order}/status', [OrderController::class, 'updateStatus']);
         Route::delete('/orders/{order}', [OrderController::class, 'destroy']);
+
+        Route::post('/orders/recalculate-totals', [OrderController::class, 'recalculateTotals']);
         
         // Customers - CRUD completo
         Route::get('/customers', [CustomerController::class, 'index']);

@@ -21,11 +21,19 @@ class OrderSeeder extends Seeder
         $statuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
         $statusWeights = [15, 25, 30, 25, 5]; // Probabilidades de cada estado
 
+        // Obtener todos los customers (son globales, no pertenecen a un user específico)
+        $allCustomers = Customer::all();
+        
+        if ($allCustomers->isEmpty()) {
+            echo "   ⚠️ No hay customers creados. Ejecuta CustomerSeeder primero.\n";
+            return;
+        }
+
         foreach ($managers as $user) {
-            $customers = Customer::where('user_id', $user->id)->get();
             $products = Product::where('user_id', $user->id)->get();
             
-            if ($customers->isEmpty() || $products->isEmpty()) {
+            if ($products->isEmpty()) {
+                echo "   ⚠️ No hay productos para {$user->name}. Saltando...\n";
                 continue;
             }
             
@@ -41,11 +49,15 @@ class OrderSeeder extends Seeder
                 $statusIndex = $this->getWeightedRandomIndex($statusWeights);
                 $status = $statuses[$statusIndex];
                 
+                // Crear el pedido primero sin total
                 $order = Order::create([
-                    'user_id' => $user->id, // Solo managers
-                    'customer_id' => $customers->random()->id,
+                    'user_id' => $user->id, // Solo managers (vendedor)
+                    'customer_id' => $allCustomers->random()->id, // Customer aleatorio global
                     'order_number' => $this->generateOrderNumber($user->id, $i),
                     'status' => $status,
+                    'subtotal' => 0, // Se calculará después
+                    'tax' => 0,
+                    'shipping' => 0,
                     'total' => 0, // Se calculará después
                     'notes' => rand(0, 4) == 0 ? 'Pedido especial del cliente' : null,
                     'created_at' => $orderDate,
@@ -55,6 +67,7 @@ class OrderSeeder extends Seeder
                 // Agregar entre 1-5 items por pedido
                 $itemCount = $this->getWeightedItemCount();
                 $usedProducts = collect();
+                $orderSubtotal = 0;
                 
                 for ($j = 0; $j < $itemCount; $j++) {
                     // Evitar productos duplicados en el mismo pedido
@@ -70,6 +83,7 @@ class OrderSeeder extends Seeder
                     $unitPrice = $product->price;
                     $totalPrice = $unitPrice * $quantity;
                     
+                    // Crear el item
                     OrderItem::create([
                         'order_id' => $order->id,
                         'product_id' => $product->id,
@@ -78,7 +92,22 @@ class OrderSeeder extends Seeder
                         'total_price' => $totalPrice,
                     ]);
                     
+                    // Sumar al subtotal del pedido
+                    $orderSubtotal += $totalPrice;
                 }
+                
+                // Calcular impuestos y envío (opcional)
+                $tax = round($orderSubtotal * 0.21, 2); // 21% IVA en España
+                $shipping = $orderSubtotal > 50 ? 0 : 5.99; // Envío gratis para pedidos > €50
+                $orderTotal = $orderSubtotal + $tax + $shipping;
+                
+                // Actualizar el pedido con los totales calculados
+                $order->update([
+                    'subtotal' => $orderSubtotal,
+                    'tax' => $tax,
+                    'shipping' => $shipping,
+                    'total' => $orderTotal,
+                ]);
                 
                 // Actualizar fechas según el estado
                 if ($status === 'shipped') {

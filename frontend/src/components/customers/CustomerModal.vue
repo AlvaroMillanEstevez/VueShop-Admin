@@ -103,27 +103,27 @@
               <dl class="space-y-3">
                 <div>
                   <dt class="text-sm font-medium text-gray-500">Name</dt>
-                  <dd class="text-sm text-gray-900">{{ customer.name }}</dd>
+                  <dd class="text-sm text-gray-900">{{ getCustomerField('name') }}</dd>
                 </div>
                 <div>
                   <dt class="text-sm font-medium text-gray-500">Email</dt>
-                  <dd class="text-sm text-gray-900">{{ customer.email }}</dd>
+                  <dd class="text-sm text-gray-900">{{ getCustomerField('email') }}</dd>
                 </div>
                 <div>
                   <dt class="text-sm font-medium text-gray-500">Phone</dt>
-                  <dd class="text-sm text-gray-900">{{ customer.phone || 'N/A' }}</dd>
+                  <dd class="text-sm text-gray-900">{{ getCustomerField('phone') }}</dd>
                 </div>
                 <div>
                   <dt class="text-sm font-medium text-gray-500">Address</dt>
-                  <dd class="text-sm text-gray-900">{{ customer.address || 'N/A' }}</dd>
+                  <dd class="text-sm text-gray-900">{{ getCustomerField('address') }}</dd>
                 </div>
                 <div>
                   <dt class="text-sm font-medium text-gray-500">City</dt>
-                  <dd class="text-sm text-gray-900">{{ customer.city || 'N/A' }}</dd>
+                  <dd class="text-sm text-gray-900">{{ getCustomerField('city') }}</dd>
                 </div>
                 <div>
                   <dt class="text-sm font-medium text-gray-500">Country</dt>
-                  <dd class="text-sm text-gray-900">{{ customer.country || 'N/A' }}</dd>
+                  <dd class="text-sm text-gray-900">{{ getCustomerField('country') }}</dd>
                 </div>
               </dl>
             </div>
@@ -133,18 +133,45 @@
               <dl class="space-y-3">
                 <div>
                   <dt class="text-sm font-medium text-gray-500">Total Orders</dt>
-                  <dd class="text-sm text-gray-900">{{ customer.orders_count || 0 }}</dd>
+                  <dd class="text-sm text-gray-900">{{ getCustomerField('orders_count') || 0 }}</dd>
                 </div>
                 <div>
-                  <dt class="text-sm font-medium text-gray-500">Total Spent</dt>
-                  <dd class="text-sm text-gray-900">€{{ formatCurrency(customer.total_spent || 0) }}</dd>
+                  <dt class="text-sm font-medium text-gray-500">Last Order</dt>
+                  <dd class="text-sm text-gray-900">
+                    {{ getCustomerField('last_order_at') ? formatDate(getCustomerField('last_order_at')) : 'Never' }}
+                  </dd>
                 </div>
                 <div>
                   <dt class="text-sm font-medium text-gray-500">Customer Since</dt>
-                  <dd class="text-sm text-gray-900">{{ formatDate(customer.created_at) }}</dd>
+                  <dd class="text-sm text-gray-900">{{ getCustomerField('created_at') ? formatDate(getCustomerField('created_at')) : 'N/A' }}</dd>
                 </div>
               </dl>
             </div>
+          </div>
+
+          <!-- Recent Orders Section -->
+          <div v-if="getCustomerField('recent_orders') && getCustomerField('recent_orders').length > 0" class="pt-4 border-t">
+            <h3 class="text-lg font-semibold mb-4">Recent Orders</h3>
+            <div class="space-y-2">
+              <div v-for="order in getCustomerField('recent_orders')" :key="order.id" 
+                   class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <div class="font-medium">{{ order.order_number }}</div>
+                  <div class="text-sm text-gray-500">
+                    {{ order.items_count }} items • {{ order.status }}
+                  </div>
+                </div>
+                <div class="text-right">
+                  <div class="font-medium">€{{ parseFloat(order.total).toFixed(2) }}</div>
+                  <div class="text-sm text-gray-500">{{ formatDate(order.created_at) }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="getCustomerField('notes')" class="pt-4 border-t">
+            <h3 class="text-lg font-semibold mb-2">Notes</h3>
+            <p class="text-sm text-gray-900">{{ getCustomerField('notes') }}</p>
           </div>
 
           <div class="flex justify-end space-x-3 pt-4 border-t">
@@ -155,6 +182,11 @@
               Edit Customer
             </button>
           </div>
+        </div>
+
+        <!-- Fallback if no customer -->
+        <div v-else class="text-center py-8">
+          <p class="text-gray-500">No customer data available</p>
         </div>
       </div>
     </div>
@@ -171,21 +203,31 @@ interface Props {
   form: any
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 defineEmits<{
   close: []
   save: []
   edit: [customer: Customer]
 }>()
 
-// Utility functions
-const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(amount)
+// Helper function to get customer field values
+const getCustomerField = (fieldName: string) => {
+  if (!props.customer) return 'N/A'
+  
+  // The actual customer data is inside customer.data
+  const customerData = props.customer.data || props.customer
+  
+  if (!customerData) return 'N/A'
+  
+  // Try direct access
+  if (customerData[fieldName] !== undefined && customerData[fieldName] !== null) {
+    return customerData[fieldName]
+  }
+  
+  return 'N/A'
 }
 
+// Utility functions
 const formatDate = (dateString: string): string => {
   return new Date(dateString).toLocaleDateString('en-US', {
     year: 'numeric',
