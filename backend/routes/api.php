@@ -62,6 +62,7 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/customers', [CustomerController::class, 'store']);
         Route::put('/customers/{customer}', [CustomerController::class, 'update']);
         Route::delete('/customers/{customer}', [CustomerController::class, 'destroy']);
+        Route::get('/customers-stats', [CustomerController::class, 'stats']);
     });
 
     // Admin only routes

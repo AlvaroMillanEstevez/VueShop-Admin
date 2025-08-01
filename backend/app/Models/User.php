@@ -96,14 +96,8 @@ class User extends Authenticatable implements JWTSubject
         return $this->role === 'customer';
     }
 
-    /**
-     * Summary of customers
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany<Customer, User>
-     */
-    public function customers()
-    {
-        return $this->hasMany(Customer::class);
-    }
+    // ELIMINAMOS la relación customers() ya que los clientes son independientes
+
     /**
      * Relationship: User has many products (as seller)
      */

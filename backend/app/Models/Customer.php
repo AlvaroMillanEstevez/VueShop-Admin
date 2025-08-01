@@ -10,7 +10,6 @@ class Customer extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id',
         'name',
         'email',
         'phone',
@@ -21,15 +20,7 @@ class Customer extends Model
     ];
 
     /**
-     * Relationship with user (owner)
-     */
-    public function user()
-    {
-        return $this->belongsTo(User::class);
-    }
-
-    /**
-     * Relationship with orders
+     * Relationship with orders - Un cliente puede tener muchos pedidos
      */
     public function orders()
     {
@@ -37,15 +28,7 @@ class Customer extends Model
     }
 
     /**
-     * Scope para filtrar por usuario actual
-     */
-    public function scopeForUser($query, $userId)
-    {
-        return $query->where('user_id', $userId);
-    }
-
-    /**
-     * Calculate total spent by customer
+     * Calculate total spent by customer across all orders
      */
     public function getTotalSpentAttribute()
     {
@@ -66,5 +49,33 @@ class Customer extends Model
     public function getLastOrderAtAttribute()
     {
         return $this->orders()->latest()->first()?->created_at;
+    }
+
+    /**
+     * Scope para búsqueda por nombre o email
+     */
+    public function scopeSearch($query, $search)
+    {
+        return $query->where(function($q) use ($search) {
+            $q->where('name', 'like', "%{$search}%")
+              ->orWhere('email', 'like', "%{$search}%")
+              ->orWhere('phone', 'like', "%{$search}%");
+        });
+    }
+
+    /**
+     * Scope para obtener clientes con pedidos
+     */
+    public function scopeWithOrders($query)
+    {
+        return $query->whereHas('orders');
+    }
+
+    /**
+     * Scope para obtener clientes sin pedidos
+     */
+    public function scopeWithoutOrders($query)
+    {
+        return $query->whereDoesntHave('orders');
     }
 }

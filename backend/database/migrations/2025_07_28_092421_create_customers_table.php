@@ -10,18 +10,19 @@ return new class extends Migration
     {
         Schema::create('customers', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade'); // NUEVO
+            // ELIMINAMOS user_id - los clientes son independientes
             $table->string('name');
-            $table->string('email'); // Removido unique para permitir duplicados entre users
+            $table->string('email'); // Permitir duplicados ya que no están vinculados a usuarios
             $table->string('phone')->nullable();
             $table->text('address')->nullable();
             $table->string('city')->nullable();
             $table->string('country')->default('Spain');
-            $table->text('notes')->nullable(); // NUEVO campo para notas
+            $table->text('notes')->nullable();
             $table->timestamps();
             
-            // Index compuesto en user_id y email para evitar duplicados por usuario
-            $table->unique(['user_id', 'email']);
+            // Índices para búsqueda
+            $table->index('email');
+            $table->index('name');
         });
     }
 

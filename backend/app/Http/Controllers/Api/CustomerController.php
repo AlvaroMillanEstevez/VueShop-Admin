@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use App\Models\User;
+use App\Models\Customer;
 use App\Models\Order;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -13,33 +13,12 @@ class CustomerController extends Controller
 {
     /**
      * Display a listing of customers.
+     * Todos los usuarios autenticados pueden ver todos los clientes.
+     * Los clientes son entidades independientes, no pertenecen a usuarios específicos.
      */
     public function index(Request $request): JsonResponse
     {
         try {
-            // Query only users with role 'customer' OR users who have been customers in orders
-            $query = User::query()
-                ->withCount('orders as customer_orders_count') // Orders where they are the customer
-                ->withSum('orders as customer_total_spent', 'total');
-            
-            // Only get actual customers - users with customer role OR users who appear as customers in orders
-            $query->where(function (Builder $q) {
-                $q->where('role', 'customer')
-                  ->orWhereHas('orders'); // Users who have placed orders as customers
-            })
-            // Exclude admin and manager roles from customer list
-            ->whereNotIn('role', ['admin', 'manager']);
-            
-            // Apply search filter
-            if ($request->filled('search')) {
-                $search = $request->search;
-                $query->where(function (Builder $q) use ($search) {
-                    $q->where('name', 'like', "%{$search}%")
-                      ->orWhere('email', 'like', "%{$search}%");
-                });
-            }
-            
-            // Check user permissions
             $user = $request->user();
             if (!$user) {
                 return response()->json([
@@ -47,19 +26,42 @@ class CustomerController extends Controller
                     'message' => 'Unauthenticated'
                 ], 401);
             }
-            
-            // Non-admin users can't access customer data
-            if (!$user->is_admin && $user->role !== 'admin') {
+
+            // Verificar que el usuario tenga un rol válido
+            if (!in_array($user->role, ['admin', 'manager', 'seller'])) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Access denied. Admin privileges required.'
+                    'message' => 'Access denied. Insufficient privileges.'
                 ], 403);
             }
-            
-            // Paginate results
-            $customers = $query->orderBy('created_at', 'desc')->paginate(15);
-            
-            // Transform the data to include calculated fields
+
+            // Query base - todos los clientes con sus estadísticas de pedidos
+            $query = Customer::query()
+                ->withCount('orders')
+                ->withSum('orders', 'total');
+
+            // Aplicar búsqueda si se proporciona
+            if ($request->filled('search')) {
+                $search = $request->search;
+                $query->search($search);
+            }
+
+            // Filtros adicionales opcionales
+            if ($request->filled('has_orders')) {
+                if ($request->has_orders === 'true') {
+                    $query->withOrders();
+                } elseif ($request->has_orders === 'false') {
+                    $query->withoutOrders();
+                }
+            }
+
+            // Ordenar por fecha de creación (más recientes primero)
+            $query->orderBy('created_at', 'desc');
+
+            // Paginar resultados
+            $customers = $query->paginate(15);
+
+            // Transformar los datos
             $transformedCustomers = $customers->getCollection()->map(function ($customer) {
                 return [
                     'id' => $customer->id,
@@ -67,15 +69,17 @@ class CustomerController extends Controller
                     'email' => $customer->email,
                     'phone' => $customer->phone ?? null,
                     'address' => $customer->address ?? null,
-                    'role' => $customer->role,
-                    'is_verified' => (bool) $customer->email_verified_at,
-                    'orders_count' => $customer->customer_orders_count ?? 0,
-                    'total_spent' => $customer->customer_total_spent ?? 0,
+                    'city' => $customer->city ?? null,
+                    'country' => $customer->country ?? null,
+                    'notes' => $customer->notes ?? null,
+                    'orders_count' => $customer->orders_count ?? 0,
+                    'total_spent' => $customer->orders_sum_total ?? 0,
+                    'last_order_at' => $customer->last_order_at,
                     'created_at' => $customer->created_at,
                     'updated_at' => $customer->updated_at,
                 ];
             });
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $transformedCustomers,
@@ -103,23 +107,24 @@ class CustomerController extends Controller
     }
     
     /**
-     * Display the specified customer.
+     * Display the specified customer with recent orders.
      */
     public function show(Request $request, $id): JsonResponse
     {
         try {
             $user = $request->user();
             
-            // Check permissions
-            if (!$user->is_admin && $user->role !== 'admin') {
+            // Verificar permisos básicos
+            if (!in_array($user->role, ['admin', 'manager', 'seller'])) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Access denied'
                 ], 403);
             }
             
-            $customer = User::with(['orders' => function ($query) {
-                $query->with('items.product')
+            // Obtener cliente con sus pedidos recientes
+            $customer = Customer::with(['orders' => function ($query) {
+                $query->with(['items.product', 'seller']) // Incluir vendedor del pedido
                       ->orderBy('created_at', 'desc')
                       ->limit(10);
             }])
@@ -127,17 +132,19 @@ class CustomerController extends Controller
             ->withSum('orders', 'total')
             ->findOrFail($id);
             
-            // Transform customer data
+            // Transformar datos del cliente
             $customerData = [
                 'id' => $customer->id,
                 'name' => $customer->name,
                 'email' => $customer->email,
                 'phone' => $customer->phone,
                 'address' => $customer->address,
-                'role' => $customer->role,
-                'is_verified' => (bool) $customer->email_verified_at,
+                'city' => $customer->city,
+                'country' => $customer->country,
+                'notes' => $customer->notes,
                 'orders_count' => $customer->orders_count ?? 0,
                 'total_spent' => $customer->orders_sum_total ?? 0,
+                'last_order_at' => $customer->last_order_at,
                 'created_at' => $customer->created_at,
                 'updated_at' => $customer->updated_at,
                 'recent_orders' => $customer->orders->map(function ($order) {
@@ -147,6 +154,7 @@ class CustomerController extends Controller
                         'total' => $order->total,
                         'status' => $order->status,
                         'items_count' => $order->items->count(),
+                        'seller_name' => $order->seller->name ?? 'Unknown',
                         'created_at' => $order->created_at,
                     ];
                 })
@@ -184,8 +192,8 @@ class CustomerController extends Controller
         try {
             $user = $request->user();
             
-            // Check permissions
-            if (!$user->is_admin && $user->role !== 'admin') {
+            // Verificar permisos
+            if (!in_array($user->role, ['admin', 'manager', 'seller'])) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Access denied'
@@ -194,20 +202,23 @@ class CustomerController extends Controller
             
             $request->validate([
                 'name' => 'required|string|max:255',
-                'email' => 'required|string|email|max:255|unique:users',
+                'email' => 'required|string|email|max:255',
                 'phone' => 'nullable|string|max:20',
                 'address' => 'nullable|string|max:500',
-                'password' => 'required|string|min:8',
+                'city' => 'nullable|string|max:100',
+                'country' => 'nullable|string|max:100',
+                'notes' => 'nullable|string|max:1000',
             ]);
             
-            $customer = User::create([
+            // Los clientes son independientes, no se asignan a usuarios
+            $customer = Customer::create([
                 'name' => $request->name,
                 'email' => $request->email,
                 'phone' => $request->phone,
                 'address' => $request->address,
-                'password' => bcrypt($request->password),
-                'role' => 'customer',
-                'is_active' => true,
+                'city' => $request->city,
+                'country' => $request->country ?? 'Spain',
+                'notes' => $request->notes,
             ]);
             
             return response()->json([
@@ -241,35 +252,33 @@ class CustomerController extends Controller
         try {
             $user = $request->user();
             
-            // Check permissions
-            if (!$user->is_admin && $user->role !== 'admin') {
+            // Verificar permisos
+            if (!in_array($user->role, ['admin', 'manager', 'seller'])) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Access denied'
                 ], 403);
             }
             
-            $customer = User::findOrFail($id);
+            $customer = Customer::findOrFail($id);
             
             $request->validate([
                 'name' => 'sometimes|required|string|max:255',
-                'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $customer->id,
+                'email' => 'sometimes|required|string|email|max:255',
                 'phone' => 'nullable|string|max:20',
                 'address' => 'nullable|string|max:500',
-                'password' => 'sometimes|string|min:8',
+                'city' => 'nullable|string|max:100',
+                'country' => 'nullable|string|max:100',
+                'notes' => 'nullable|string|max:1000',
             ]);
             
-            $updateData = $request->only(['name', 'email', 'phone', 'address']);
-            
-            if ($request->filled('password')) {
-                $updateData['password'] = bcrypt($request->password);
-            }
-            
-            $customer->update($updateData);
+            $customer->update($request->only([
+                'name', 'email', 'phone', 'address', 'city', 'country', 'notes'
+            ]));
             
             return response()->json([
                 'success' => true,
-                'data' => $customer,
+                'data' => $customer->fresh(),
                 'message' => 'Customer updated successfully'
             ]);
             
@@ -297,27 +306,28 @@ class CustomerController extends Controller
     
     /**
      * Remove the specified customer.
+     * Solo se permite si no tiene pedidos asociados.
      */
     public function destroy(Request $request, $id): JsonResponse
     {
         try {
             $user = $request->user();
             
-            // Check permissions
-            if (!$user->is_admin && $user->role !== 'admin') {
+            // Verificar permisos - solo admin puede eliminar clientes
+            if ($user->role !== 'admin') {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Access denied'
+                    'message' => 'Access denied. Only administrators can delete customers.'
                 ], 403);
             }
             
-            $customer = User::findOrFail($id);
+            $customer = Customer::findOrFail($id);
             
-            // Check if customer has orders
+            // Verificar si tiene pedidos
             if ($customer->orders()->count() > 0) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cannot delete customer with existing orders'
+                    'message' => 'Cannot delete customer with existing orders. Customer has ' . $customer->orders()->count() . ' orders.'
                 ], 400);
             }
             
@@ -333,12 +343,60 @@ class CustomerController extends Controller
                 'success' => false,
                 'message' => 'Customer not found'
             ], 404);
+            
         } catch (\Exception $e) {
             \Log::error('Error deleting customer: ' . $e->getMessage());
             
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to delete customer',
+                'error' => app()->environment('local') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
+    }
+
+    /**
+     * Get customer statistics
+     */
+    public function stats(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+            
+            if (!in_array($user->role, ['admin', 'manager', 'seller'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Access denied'
+                ], 403);
+            }
+
+            $stats = [
+                'total_customers' => Customer::count(),
+                'customers_with_orders' => Customer::withOrders()->count(),
+                'customers_without_orders' => Customer::withoutOrders()->count(),
+                'total_spent_all_customers' => Customer::join('orders', 'customers.id', '=', 'orders.customer_id')
+                    ->sum('orders.total'),
+                'average_spent_per_customer' => Customer::withOrders()
+                    ->join('orders', 'customers.id', '=', 'orders.customer_id')
+                    ->selectRaw('AVG(order_totals.total) as avg_spent')
+                    ->from(Customer::withOrders()
+                        ->join('orders', 'customers.id', '=', 'orders.customer_id')
+                        ->selectRaw('customers.id, SUM(orders.total) as total')
+                        ->groupBy('customers.id'), 'order_totals')
+                    ->value('avg_spent') ?? 0,
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => $stats
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error loading customer stats: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load customer statistics',
                 'error' => app()->environment('local') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
