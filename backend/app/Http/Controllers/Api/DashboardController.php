@@ -26,13 +26,24 @@ class DashboardController extends Controller
                 // Admin sees all data
                 $ordersQuery = Order::query();
                 $productsQuery = Product::query();
-                $customersQuery = User::where('role', 'customer');
+                // For customers, get unique customer_ids from orders
+                $customersQuery = User::whereIn('id', function($query) {
+                    $query->select('customer_id')
+                          ->from('orders')
+                          ->whereNotNull('customer_id')
+                          ->distinct();
+                });
             } else {
-                // Sellers see only their data - using user_id instead of seller_id
+                // Sellers see only their data
                 $ordersQuery = Order::where('user_id', $user->id);
-                $productsQuery = Product::where('seller_id', $user->id);
-                $customersQuery = User::whereHas('orders', function ($query) use ($user) {
-                    $query->where('user_id', $user->id);
+                $productsQuery = Product::where('user_id', $user->id);
+                // For this seller's customers
+                $customersQuery = User::whereIn('id', function($query) use ($user) {
+                    $query->select('customer_id')
+                          ->from('orders')
+                          ->where('user_id', $user->id)
+                          ->whereNotNull('customer_id')
+                          ->distinct();
                 });
             }
             
@@ -92,7 +103,7 @@ class DashboardController extends Controller
                           ->where('status', '!=', 'cancelled');
             
             if (!$user->is_admin) {
-                $query->where('user_id', $user->id); // Using user_id instead of seller_id
+                $query->where('user_id', $user->id);
             }
             
             // Get daily sales data
@@ -146,7 +157,7 @@ class DashboardController extends Controller
             if ($user->is_admin) {
                 $query = Product::query();
             } else {
-                $query = Product::where('seller_id', $user->id);
+                $query = Product::where('user_id', $user->id); // CORREGIDO: user_id en lugar de seller_id
             }
             
             // Get products with sales count from order items
@@ -160,10 +171,10 @@ class DashboardController extends Controller
                                     'products.name',
                                     'products.price',
                                     'products.image_url',
-                                    'products.seller_id',
+                                    'products.user_id', // CORREGIDO: user_id en lugar de seller_id
                                     DB::raw('COALESCE(SUM(order_items.quantity), 0) as sales_count')
                                 ])
-                                ->groupBy('products.id', 'products.name', 'products.price', 'products.image_url', 'products.seller_id')
+                                ->groupBy('products.id', 'products.name', 'products.price', 'products.image_url', 'products.user_id') // CORREGIDO
                                 ->orderBy('sales_count', 'desc')
                                 ->limit($limit)
                                 ->get();
@@ -205,33 +216,43 @@ class DashboardController extends Controller
             $limit = (int) $request->get('limit', 10);
             
             // Base query depending on user role
-            $query = Order::query();
+            $query = Order::with('user'); // Eager load user relationship
             
             if (!$user->is_admin) {
-                $query->where('user_id', $user->id); // Using user_id instead of seller_id
+                $query->where('user_id', $user->id);
             }
             
-            // Get recent orders with basic data
+            // Get recent orders with user data
             $recentOrders = $query->orderBy('created_at', 'desc')
                                  ->limit($limit)
                                  ->get();
             
             // Transform data
             $transformedOrders = $recentOrders->map(function ($order) {
-                // Try to get customer info if customer_id exists
-                $customer = null;
+                // Get customer info - checking both customer_id and user relationship
+                $customerName = 'N/A';
+                $customerEmail = 'N/A';
+                
                 if ($order->customer_id) {
                     $customer = User::find($order->customer_id);
+                    if ($customer) {
+                        $customerName = $customer->name;
+                        $customerEmail = $customer->email;
+                    }
+                } elseif ($order->user) {
+                    // If no customer_id but user relationship exists
+                    $customerName = $order->user->name;
+                    $customerEmail = $order->user->email;
                 }
                 
                 return [
                     'id' => $order->id,
                     'order_number' => $order->order_number,
-                    'customer_name' => $customer ? $customer->name : 'N/A',
-                    'customer_email' => $customer ? $customer->email : 'N/A',
+                    'customer_name' => $customerName,
+                    'customer_email' => $customerEmail,
                     'total' => (float) $order->total,
                     'status' => $order->status,
-                    'items_count' => 0, // We'll calculate this if needed
+                    'items_count' => $order->orderItems ? $order->orderItems->count() : 0,
                     'created_at' => $order->created_at
                 ];
             });
@@ -260,6 +281,18 @@ class DashboardController extends Controller
         try {
             $user = $request->user();
             
+            // Add some debug info about database structure
+            $debugInfo = [
+                'products_count' => Product::count(),
+                'orders_count' => Order::count(),
+                'users_count' => User::count(),
+            ];
+            
+            if (!$user->is_admin) {
+                $debugInfo['user_products'] = Product::where('user_id', $user->id)->count();
+                $debugInfo['user_orders'] = Order::where('user_id', $user->id)->count();
+            }
+            
             return response()->json([
                 'success' => true,
                 'message' => 'Dashboard API test successful',
@@ -269,6 +302,7 @@ class DashboardController extends Controller
                     'role' => $user->role,
                     'is_admin' => $user->is_admin
                 ],
+                'debug' => $debugInfo,
                 'timestamp' => now(),
                 'environment' => app()->environment()
             ]);

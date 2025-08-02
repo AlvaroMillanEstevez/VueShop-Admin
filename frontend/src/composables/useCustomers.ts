@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 import { dashboardApi, handleAPIError } from '@/services/api'
 
 export interface Customer {
+  data: Customer
   id: number
   name: string
   email: string

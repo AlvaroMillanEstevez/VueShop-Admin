@@ -4,7 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 // Layout
 import AppLayout from '@/components/AppLayout.vue'
 
-// Tus vistas existentes
+// Vistas existentes
 import Dashboard from '@/views/Dashboard.vue'
 import Products from '@/views/Products.vue'
 import Orders from '@/views/Orders.vue'
@@ -85,12 +85,13 @@ router.beforeEach(async (to, from, next) => {
   console.log('Current auth state:', {
     isAuthenticated: authStore.isAuthenticated,
     hasToken: !!authStore.token,
-    hasUser: !!authStore.user
+    hasUser: !!authStore.user,
+    sessionExpired: authStore.sessionExpired
   })
   
   try {
-    // Initialize auth if we have a token but no user
-    if (authStore.token && !authStore.user && !authStore.isAuthenticated) {
+    // Si hay un token pero no estamos autenticados, intentar inicializar
+    if (authStore.token && !authStore.isAuthenticated && !authStore.sessionExpired) {
       console.log('Initializing auth...')
       const initialized = await authStore.initialize()
       console.log('Auth initialized:', initialized)
@@ -100,7 +101,32 @@ router.beforeEach(async (to, from, next) => {
     if (to.meta.requiresAuth) {
       if (!authStore.isAuthenticated) {
         console.log('Route requires auth but user not authenticated, redirecting to login')
-        next('/login')
+        
+        // Si la sesión expiró, agregar parámetro de mensaje
+        const query: any = {}
+        if (authStore.sessionExpired) {
+          query.message = 'session_expired'
+        }
+        
+        // Guardar la ruta de destino para redireccionar después del login
+        if (to.path !== '/dashboard') {
+          query.redirect = to.fullPath
+        }
+        
+        next({
+          name: 'login',
+          query
+        })
+        return
+      }
+      
+      // Verificar que el usuario sigue siendo válido
+      if (!authStore.user) {
+        console.log('User data is missing, redirecting to login')
+        next({
+          name: 'login',
+          query: { message: 'session_expired' }
+        })
         return
       }
     }
@@ -109,7 +135,10 @@ router.beforeEach(async (to, from, next) => {
     if (to.meta.requiresAdmin) {
       if (!authStore.isAuthenticated) {
         console.log('Route requires admin but user not authenticated, redirecting to login')
-        next('/login')
+        next({
+          name: 'login',
+          query: { message: 'session_expired' }
+        })
         return
       }
       
@@ -122,7 +151,7 @@ router.beforeEach(async (to, from, next) => {
     
     // Check if route requires guest (not authenticated)
     if (to.meta.requiresGuest) {
-      if (authStore.isAuthenticated) {
+      if (authStore.isAuthenticated && authStore.user) {
         console.log('Route requires guest but user is authenticated, redirecting to dashboard')
         next('/dashboard')
         return
@@ -136,11 +165,20 @@ router.beforeEach(async (to, from, next) => {
   } catch (error) {
     console.error('Router navigation error:', error)
     
-    // En caso de error durante la inicialización, limpiar auth y redirigir a login
+    // Si hay error durante la navegación, limpiar auth y redirigir a login
     if (to.meta.requiresAuth) {
-      console.log('Auth error, clearing state and redirecting to login')
-      authStore.logout()
-      next('/login')
+      console.log('Auth error during navigation, clearing state and redirecting to login')
+      
+      // Usar handleTokenExpiration para limpiar correctamente
+      await authStore.handleTokenExpiration()
+      
+      next({
+        name: 'login',
+        query: { 
+          message: 'session_expired',
+          redirect: to.fullPath !== '/dashboard' ? to.fullPath : undefined
+        }
+      })
     } else {
       next()
     }

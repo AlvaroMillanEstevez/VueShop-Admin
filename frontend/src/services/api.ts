@@ -1,7 +1,6 @@
 import axios, { type AxiosResponse, AxiosError } from 'axios'
-
-// Importar tipos si los tienes en types/index.ts
-// import type { Product, Order, Customer, User, ApiResponse, PaginatedResponse } from '@/types'
+import { useAuthStore } from '@/stores/auth'
+import router from '@/router'
 
 // Configuración base de axios
 const api = axios.create({
@@ -12,6 +11,9 @@ const api = axios.create({
     'Accept': 'application/json',
   }
 })
+
+// Flag para evitar múltiples redirects simultáneos
+let isRedirecting = false
 
 // Interceptor para agregar token a las requests
 api.interceptors.request.use(
@@ -53,10 +55,41 @@ api.interceptors.response.use(
       return Promise.reject(htmlError)
     }
     
+    // Manejo de errores 401 (Unauthorized)
     if (error.response?.status === 401) {
-      // Token expirado, limpiar storage y redirigir a login
-      localStorage.removeItem('token')
-      window.location.href = '/login'
+      console.log('401 Unauthorized detected, handling token expiration...')
+      
+      // Evitar múltiples redirects simultáneos
+      if (!isRedirecting) {
+        isRedirecting = true
+        
+        try {
+          // Intentar usar el store para hacer logout limpio
+          const authStore = useAuthStore()
+          await authStore.handleTokenExpiration()
+          
+          // Redirigir al login con mensaje
+          router.push({
+            name: 'login',
+            query: { 
+              message: 'session_expired',
+              redirect: router.currentRoute.value.fullPath 
+            }
+          })
+        } catch (logoutError) {
+          console.error('Error during logout:', logoutError)
+          
+          // Fallback: limpiar localStorage y redirigir
+          localStorage.removeItem('token')
+          localStorage.removeItem('user')
+          window.location.href = '/login?message=session_expired'
+        } finally {
+          // Reset flag después de un tiempo
+          setTimeout(() => {
+            isRedirecting = false
+          }, 1000)
+        }
+      }
     }
     
     return Promise.reject(error)
@@ -75,7 +108,7 @@ const handleApiError = (error: any): string => {
     
     switch (status) {
       case 401:
-        return 'Authentication failed. Please log in again.'
+        return 'Your session has expired. Please log in again.'
       case 403:
         return 'Access denied. You do not have permission for this action.'
       case 404:
@@ -267,7 +300,7 @@ export const adminApi = {
     makeRequest(api.put(`/admin/users/${userId}/toggle-status`)),
 }
 
-// Compatibilidad con el código anterior (servicio simple para componentes que no usen dashboardApi)
+// Compatibilidad con el código anterior
 export class APIService {
   private token: string | null = null
 
@@ -308,7 +341,7 @@ export const handleAPIError = (response: ApiResponseWrapper<any>, fallbackMessag
   if (response.error) return response.error
   
   if (response.status === 401) {
-    return 'Authentication required. Please log in again.'
+    return 'Your session has expired. Please log in again.'
   }
   
   if (response.status === 403) {

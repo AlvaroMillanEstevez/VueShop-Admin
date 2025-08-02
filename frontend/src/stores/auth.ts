@@ -6,7 +6,7 @@ interface User {
   id: number
   name: string
   email: string
-  role: 'admin' | 'seller' | 'customer'
+  role: 'admin' | 'manager' | 'customer'
   is_active: boolean
   created_at?: string
   updated_at?: string
@@ -16,6 +16,7 @@ interface AuthState {
   user: User | null
   token: string | null
   isAuthenticated: boolean
+  sessionExpired: boolean
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -23,6 +24,7 @@ export const useAuthStore = defineStore('auth', {
     user: null,
     token: localStorage.getItem('token'),
     isAuthenticated: false,
+    sessionExpired: false,
   }),
 
   getters: {
@@ -30,12 +32,30 @@ export const useAuthStore = defineStore('auth', {
       return state.user?.role === 'admin' || false
     },
     
-    isSeller: (state): boolean => {
-      return state.user?.role === 'seller' || false
+    isManager: (state): boolean => {
+      return state.user?.role === 'manager' || false
     },
     
     isCustomer: (state): boolean => {
       return state.user?.role === 'customer' || false
+    },
+
+    // Getter para mostrar información del usuario con fallbacks seguros
+    userDisplayName: (state): string => {
+      if (!state.isAuthenticated || !state.user) return 'Usuario'
+      return state.user.name || 'Usuario'
+    },
+
+    userDisplayRole: (state): string => {
+      if (!state.isAuthenticated || !state.user) return 'usuario'
+      
+      const roleMap = {
+        admin: 'Administrador',
+        manager: 'Manager',
+        customer: 'Cliente'
+      }
+      
+      return roleMap[state.user.role] || 'usuario'
     }
   },
 
@@ -71,6 +91,7 @@ export const useAuthStore = defineStore('auth', {
         this.token = access_token
         this.user = user
         this.isAuthenticated = true
+        this.sessionExpired = false
         
         // Persistir en localStorage
         localStorage.setItem('token', access_token)
@@ -126,6 +147,7 @@ export const useAuthStore = defineStore('auth', {
         this.token = access_token
         this.user = user
         this.isAuthenticated = true
+        this.sessionExpired = false
         
         // Persistir en localStorage
         localStorage.setItem('token', access_token)
@@ -154,7 +176,7 @@ export const useAuthStore = defineStore('auth', {
     async logout() {
       try {
         // Intentar hacer logout en el servidor si tenemos token
-        if (this.token) {
+        if (this.token && this.isAuthenticated) {
           await authApi.logout()
         }
       } catch (error) {
@@ -165,6 +187,7 @@ export const useAuthStore = defineStore('auth', {
         this.user = null
         this.token = null
         this.isAuthenticated = false
+        this.sessionExpired = false
         
         // Limpiar localStorage
         localStorage.removeItem('token')
@@ -172,6 +195,36 @@ export const useAuthStore = defineStore('auth', {
         
         console.log('Logout completed')
       }
+    },
+
+    // Nueva función específica para manejar expiración de tokens
+    async handleTokenExpiration() {
+      console.log('Handling token expiration...')
+      
+      this.sessionExpired = true
+      this.isAuthenticated = false
+      
+      // Mantener datos del usuario temporalmente para mostrar mensaje personalizado
+      const currentUser = this.user
+      
+      // Limpiar token pero mantener user temporalmente
+      this.token = null
+      localStorage.removeItem('token')
+      
+      // Intentar logout limpio en servidor
+      try {
+        await authApi.logout()
+      } catch (error) {
+        console.error('Server logout failed during token expiration:', error)
+      }
+      
+      // Limpiar completamente después de un momento
+      setTimeout(() => {
+        this.user = null
+        localStorage.removeItem('user')
+      }, 1000)
+      
+      return currentUser
     },
 
     async initialize() {
@@ -200,23 +253,30 @@ export const useAuthStore = defineStore('auth', {
         if (response.success && response.data) {
           // Actualizar con datos frescos del servidor
           this.token = token
-          this.user = response.data
+          this.user = response.data.user || response.data
           this.isAuthenticated = true
+          this.sessionExpired = false
           
           // Actualizar localStorage con datos frescos
-          localStorage.setItem('user', JSON.stringify(response.data))
+          localStorage.setItem('user', JSON.stringify(this.user))
           
-          console.log('Auth initialized successfully:', response.data)
+          console.log('Auth initialized successfully:', this.user)
           return true
         } else {
-          console.log('Token is invalid, logging out')
-          this.logout()
+          console.log('Token is invalid, handling expiration...')
+          await this.handleTokenExpiration()
           return false
         }
         
       } catch (error) {
         console.error('Auth initialization error:', error)
-        this.logout()
+        
+        // Si es un error 401, manejar como expiración
+        if (error && typeof error === 'object' && 'status' in error && error.status === 401) {
+          await this.handleTokenExpiration()
+        } else {
+          this.logout()
+        }
         return false
       }
     },
@@ -247,13 +307,14 @@ export const useAuthStore = defineStore('auth', {
         }
         
         localStorage.setItem('token', access_token)
+        this.sessionExpired = false
         
         console.log('Token refreshed successfully')
         return { success: true }
         
       } catch (error) {
         console.error('Token refresh error:', error)
-        this.logout()
+        await this.handleTokenExpiration()
         return { success: false, error: error instanceof Error ? error.message : 'Token refresh failed' }
       }
     },
@@ -299,6 +360,11 @@ export const useAuthStore = defineStore('auth', {
           error: error instanceof Error ? error.message : 'Password change failed' 
         }
       }
+    },
+
+    // Nueva función para limpiar el estado de sesión expirada
+    clearSessionExpired() {
+      this.sessionExpired = false
     }
   }
 })

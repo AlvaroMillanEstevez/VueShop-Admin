@@ -6,6 +6,7 @@ import router from './router'
 
 // Importar los estilos con Tailwind
 import './style.css'
+import '@/services/authCheck'
 
 const app = createApp(App)
 
