@@ -11,9 +11,9 @@ class ProductSeeder extends Seeder
     public function run(): void
     {
         echo "📦 Creando productos...\n";
-        
+
         $managers = User::where('role', 'manager')->get();
-        
+
         $productTemplates = [
             [
                 'name' => 'iPhone 15 Pro',
@@ -21,7 +21,7 @@ class ProductSeeder extends Seeder
                 'price' => 1199.99,
                 'stock' => 25,
                 'category' => 'Smartphones',
-                'image_url' => 'https://images.unsplash.com/photo-1592286130927-570121fadf8b?w=400'
+                'image_url' => 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=400' // iPhone 15 Pro actual
             ],
             [
                 'name' => 'Samsung Galaxy S24',
@@ -116,7 +116,7 @@ class ProductSeeder extends Seeder
         foreach ($managers as $user) {
             // Cada manager tendrá una selección aleatoria de 6-9 productos
             $userProducts = collect($productTemplates)->shuffle()->take(rand(6, 9));
-            
+
             foreach ($userProducts as $index => $template) {
                 Product::create([
                     'user_id' => $user->id,
@@ -130,7 +130,7 @@ class ProductSeeder extends Seeder
                     'active' => rand(0, 10) > 1, // 90% activos
                 ]);
             }
-            
+
             echo "   ✅ " . $userProducts->count() . " productos para {$user->name}\n";
         }
     }

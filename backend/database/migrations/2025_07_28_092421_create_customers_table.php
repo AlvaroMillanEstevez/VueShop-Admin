@@ -10,7 +10,6 @@ return new class extends Migration
     {
         Schema::create('customers', function (Blueprint $table) {
             $table->id();
-            // ELIMINAMOS user_id - los clientes son independientes
             $table->string('name');
             $table->string('email'); // Permitir duplicados ya que no están vinculados a usuarios
             $table->string('phone')->nullable();

@@ -12,7 +12,7 @@
             v-model="form.name"
             type="text"
             required
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="form-input"
             placeholder="Nombre completo"
           />
         </div>
@@ -22,7 +22,7 @@
             v-model="form.email"
             type="email"
             required
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="form-input"
             placeholder="Email"
           />
         </div>
@@ -32,7 +32,7 @@
             v-model="form.password"
             type="password"
             required
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="form-input"
             placeholder="Contraseña"
           />
         </div>
@@ -42,7 +42,7 @@
             v-model="form.password_confirmation"
             type="password"
             required
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="form-input"
             placeholder="Confirmar contraseña"
           />
         </div>

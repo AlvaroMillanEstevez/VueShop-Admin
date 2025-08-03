@@ -37,8 +37,9 @@
 
     <!-- Dashboard Content -->
     <div v-else-if="!error">
-      <!-- Stats Cards -->
+      <!-- Stats Cards - CORREGIDAS -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <!-- Total Revenue -->
         <div class="bg-white overflow-hidden shadow rounded-lg">
           <div class="p-5">
             <div class="flex items-center">
@@ -51,7 +52,7 @@
                 <dl>
                   <dt class="text-sm font-medium text-gray-500 truncate">Total Revenue</dt>
                   <dd class="text-lg font-medium text-gray-900">
-                    €{{ formatCurrency(stats.total_revenue?.amount || 0) }}
+                    €{{ formatCurrency(stats.total_revenue.amount) }}
                   </dd>
                 </dl>
               </div>
@@ -59,6 +60,7 @@
           </div>
         </div>
 
+        <!-- Total Orders -->
         <div class="bg-white overflow-hidden shadow rounded-lg">
           <div class="p-5">
             <div class="flex items-center">
@@ -71,7 +73,7 @@
                 <dl>
                   <dt class="text-sm font-medium text-gray-500 truncate">Total Orders</dt>
                   <dd class="text-lg font-medium text-gray-900">
-                    {{ stats.total_orders?.count || 0 }}
+                    {{ stats.total_orders.count }}
                   </dd>
                 </dl>
               </div>
@@ -79,6 +81,7 @@
           </div>
         </div>
 
+        <!-- Active Customers -->
         <div class="bg-white overflow-hidden shadow rounded-lg">
           <div class="p-5">
             <div class="flex items-center">
@@ -90,13 +93,14 @@
               <div class="ml-5 w-0 flex-1">
                 <dl>
                   <dt class="text-sm font-medium text-gray-500 truncate">Active Customers</dt>
-                  <dd class="text-lg font-medium text-gray-900">{{ stats.active_customers || 0 }}</dd>
+                  <dd class="text-lg font-medium text-gray-900">{{ stats.active_customers }}</dd>
                 </dl>
               </div>
             </div>
           </div>
         </div>
 
+        <!-- Products in Stock -->
         <div class="bg-white overflow-hidden shadow rounded-lg">
           <div class="p-5">
             <div class="flex items-center">
@@ -108,7 +112,7 @@
               <div class="ml-5 w-0 flex-1">
                 <dl>
                   <dt class="text-sm font-medium text-gray-500 truncate">Products in Stock</dt>
-                  <dd class="text-lg font-medium text-gray-900">{{ stats.products_in_stock || 0 }}</dd>
+                  <dd class="text-lg font-medium text-gray-900">{{ stats.products_in_stock }}</dd>
                 </dl>
               </div>
             </div>
@@ -218,7 +222,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { dashboardApi, handleAPIError } from '@/services/api'
 
@@ -283,7 +287,7 @@ const recentOrders = ref<Order[]>([])
 const chartCanvas = ref<HTMLCanvasElement | null>(null)
 let chart: any = null
 
-// Load dashboard data
+// Load dashboard data - FUNCIÓN COMPLETAMENTE CORREGIDA
 const loadDashboardData = async (): Promise<void> => {
   try {
     loading.value = true
@@ -299,72 +303,85 @@ const loadDashboardData = async (): Promise<void> => {
       dashboardApi.getRecentOrders()
     ])
     
-    // Handle stats
+    // Handle stats - CORREGIDO: Acceder a statsResponse.data.data
+    console.log('Stats response completa:', statsResponse)
+    
     if (statsResponse.success && statsResponse.data) {
+      // PROBLEMA: statsResponse.data contiene {success: true, data: {...}}
+      // Necesitamos acceder a statsResponse.data.data
+      const actualStatsData = statsResponse.data.data || statsResponse.data
+      console.log('Actual stats data:', actualStatsData)
+      
       stats.value = {
-        total_revenue: statsResponse.data.total_revenue || { amount: 0, currency: 'EUR' },
-        total_orders: statsResponse.data.total_orders || { count: 0 },
-        active_customers: statsResponse.data.active_customers || 0,
-        products_in_stock: statsResponse.data.products_in_stock || 0
+        total_revenue: {
+          amount: parseFloat(actualStatsData.total_revenue?.amount || 0),
+          currency: actualStatsData.total_revenue?.currency || 'EUR'
+        },
+        total_orders: {
+          count: parseInt(actualStatsData.total_orders?.count || 0)
+        },
+        active_customers: parseInt(actualStatsData.active_customers || 0),
+        products_in_stock: parseInt(actualStatsData.products_in_stock || 0)
       }
-      console.log('Stats loaded:', stats.value)
+      
+      console.log('Stats procesadas correctamente:', stats.value)
+    } else {
+      console.error('Stats response failed:', statsResponse)
+      stats.value = {
+        total_revenue: { amount: 0, currency: 'EUR' },
+        total_orders: { count: 0 },
+        active_customers: 0,
+        products_in_stock: 0
+      }
     }
     
-    // Handle sales data with detailed logging
+    // Handle sales data - CORREGIDO: Acceder a salesResponse.data.data
     console.log('Sales response:', salesResponse)
     if (salesResponse.success && salesResponse.data) {
-      let rawSalesData = salesResponse.data
-      console.log('Raw sales data:', rawSalesData, 'Type:', typeof rawSalesData)
+      // PROBLEMA: salesResponse.data contiene {success: true, data: [...]}
+      const actualSalesData = salesResponse.data.data || salesResponse.data
+      console.log('Actual sales data:', actualSalesData)
       
-      // Handle different possible structures
-      if (Array.isArray(rawSalesData)) {
-        salesData.value = rawSalesData
-        console.log('Sales data set directly (array):', salesData.value)
-      } else if (rawSalesData && Array.isArray(rawSalesData.data)) {
-        salesData.value = rawSalesData.data
-        console.log('Sales data set from .data property:', salesData.value)
-      } else if (rawSalesData && Array.isArray(rawSalesData.sales)) {
-        salesData.value = rawSalesData.sales
-        console.log('Sales data set from .sales property:', salesData.value)
-      } else if (rawSalesData && Array.isArray(rawSalesData.chart_data)) {
-        salesData.value = rawSalesData.chart_data
-        console.log('Sales data set from .chart_data property:', salesData.value)
+      if (Array.isArray(actualSalesData)) {
+        salesData.value = actualSalesData
       } else {
-        console.warn('Sales data structure not recognized, setting empty array:', rawSalesData)
+        console.warn('Sales data is still not an array:', actualSalesData)
         salesData.value = []
       }
     } else {
-      console.warn('Sales response failed or no data:', salesResponse)
-      salesData.value = []
-    }
-    
-    // Final validation of salesData
-    if (!Array.isArray(salesData.value)) {
-      console.error('salesData is still not an array after processing:', salesData.value)
+      console.warn('Sales response failed:', salesResponse)
       salesData.value = []
     }
     
     console.log('Final salesData:', salesData.value, 'Length:', salesData.value.length)
     
-    // Handle top products
+    // Handle top products - CORREGIDO: Acceder a productsResponse.data.data
+    console.log('Products response:', productsResponse)
     if (productsResponse.success && productsResponse.data) {
-      if (Array.isArray(productsResponse.data)) {
-        topProducts.value = productsResponse.data
-      } else if (productsResponse.data.data && Array.isArray(productsResponse.data.data)) {
-        topProducts.value = productsResponse.data.data
+      // PROBLEMA: productsResponse.data contiene {success: true, data: [...]}
+      const actualProductsData = productsResponse.data.data || productsResponse.data
+      console.log('Actual products data:', actualProductsData)
+      
+      if (Array.isArray(actualProductsData)) {
+        topProducts.value = actualProductsData
       } else {
+        console.warn('Products data is still not an array:', actualProductsData)
         topProducts.value = []
       }
       console.log('Top products loaded:', topProducts.value.length)
     }
     
-    // Handle recent orders
+    // Handle recent orders - CORREGIDO: Acceder a ordersResponse.data.data
+    console.log('Orders response:', ordersResponse)
     if (ordersResponse.success && ordersResponse.data) {
-      if (Array.isArray(ordersResponse.data)) {
-        recentOrders.value = ordersResponse.data
-      } else if (ordersResponse.data.data && Array.isArray(ordersResponse.data.data)) {
-        recentOrders.value = ordersResponse.data.data
+      // PROBLEMA: ordersResponse.data contiene {success: true, data: [...]}
+      const actualOrdersData = ordersResponse.data.data || ordersResponse.data
+      console.log('Actual orders data:', actualOrdersData)
+      
+      if (Array.isArray(actualOrdersData)) {
+        recentOrders.value = actualOrdersData
       } else {
+        console.warn('Orders data is still not an array:', actualOrdersData)
         recentOrders.value = []
       }
       console.log('Recent orders loaded:', recentOrders.value.length)
@@ -374,63 +391,71 @@ const loadDashboardData = async (): Promise<void> => {
     
     // Create chart after data is loaded and DOM is updated
     await nextTick()
-    console.log('About to create chart with salesData:', salesData.value)
     createChart()
     
   } catch (err) {
     console.error('Error loading dashboard data:', err)
     error.value = 'Failed to load dashboard data. Please try again.'
+    
+    // Set default values in case of error
+    stats.value = {
+      total_revenue: { amount: 0, currency: 'EUR' },
+      total_orders: { count: 0 },
+      active_customers: 0,
+      products_in_stock: 0
+    }
+    salesData.value = []
+    topProducts.value = []
+    recentOrders.value = []
   } finally {
     loading.value = false
   }
 }
 
-// Create sales chart
+// Create sales chart - FUNCIÓN CORREGIDA
 const createChart = async (): Promise<void> => {
   try {
     chartError.value = ''
     
-    // Wait for next tick to ensure DOM is rendered
+    // Esperar múltiples ticks para asegurar que el DOM esté renderizado
     await nextTick()
+    await nextTick() // Doble nextTick para mayor seguridad
     
-    // Validate canvas element
+    // Validar que tenemos datos antes de intentar crear el canvas
+    if (!Array.isArray(salesData.value) || salesData.value.length === 0) {
+      console.log('No sales data available for chart')
+      return
+    }
+    
+    console.log('Attempting to create chart with data:', salesData.value)
+    
+    // Intentar encontrar el canvas con retry
+    let attempts = 0
+    const maxAttempts = 5
+    
+    while (!chartCanvas.value && attempts < maxAttempts) {
+      console.log(`Canvas attempt ${attempts + 1}/${maxAttempts}`)
+      await new Promise(resolve => setTimeout(resolve, 100)) // Esperar 100ms
+      attempts++
+    }
+    
     if (!chartCanvas.value) {
-      console.log('Cannot create chart: canvas element not found, will retry...')
-      // Retry after a short delay
-      setTimeout(() => {
-        if (chartCanvas.value && salesData.value?.length > 0) {
-          createChart()
-        }
-      }, 100)
+      console.error('Canvas element not found after multiple attempts')
+      chartError.value = 'Cannot find chart canvas element'
       return
     }
     
-    // Validate sales data
-    if (!salesData.value) {
-      console.log('Cannot create chart: salesData is null/undefined')
-      return
-    }
+    console.log('Canvas found:', chartCanvas.value)
     
-    if (!Array.isArray(salesData.value)) {
-      console.log('Cannot create chart: salesData is not an array:', typeof salesData.value, salesData.value)
-      chartError.value = 'Sales data is not in the correct format'
-      return
-    }
-    
-    if (salesData.value.length === 0) {
-      console.log('Cannot create chart: no sales data available')
-      return
-    }
-    
-    console.log('Creating chart with data:', salesData.value)
-    
-    // Destroy existing chart
+    // Destroy existing chart if it exists
     if (chart) {
+      console.log('Destroying existing chart')
       chart.destroy()
       chart = null
     }
     
-    // Dynamically import Chart.js to avoid build issues
+    // Dynamically import Chart.js
+    console.log('Importing Chart.js...')
     const { Chart, registerables } = await import('chart.js')
     Chart.register(...registerables)
     
@@ -438,6 +463,8 @@ const createChart = async (): Promise<void> => {
     if (!ctx) {
       throw new Error('Could not get canvas context')
     }
+    
+    console.log('Canvas context obtained')
     
     // Prepare chart data with validation
     const chartLabels = salesData.value.map(item => {
@@ -457,6 +484,7 @@ const createChart = async (): Promise<void> => {
     console.log('Chart labels:', chartLabels)
     console.log('Chart data:', chartData)
     
+    // Create the chart
     chart = new Chart(ctx, {
       type: 'line',
       data: {
@@ -491,7 +519,7 @@ const createChart = async (): Promise<void> => {
       }
     })
     
-    console.log('Chart created successfully')
+    console.log('Chart created successfully:', chart)
     
   } catch (err) {
     console.error('Error creating chart:', err)
@@ -499,12 +527,11 @@ const createChart = async (): Promise<void> => {
   }
 }
 
-// Retry loading
+// Utility functions
 const retryLoad = (): void => {
   loadDashboardData()
 }
 
-// Utility functions
 const formatCurrency = (amount: number): string => {
   return new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 2,
@@ -549,8 +576,7 @@ const getStatusClass = (status: string): string => {
   return classes[status] || 'bg-gray-100 text-gray-800'
 }
 
-// Cleanup chart on unmount
-import { onUnmounted } from 'vue'
+// Cleanup
 onUnmounted(() => {
   if (chart) {
     chart.destroy()
