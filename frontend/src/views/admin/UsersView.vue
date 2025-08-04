@@ -5,7 +5,8 @@
         <h1 class="text-3xl font-bold text-gray-900">User Management</h1>
         <p class="text-gray-600">Manage system users and their permissions</p>
       </div>
-      <button class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2">
+      <button @click="openNewUserModal"
+        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
         </svg>
@@ -52,8 +53,8 @@
               </span>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
-              <span :class="user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'" 
-                    class="inline-flex px-2 py-1 text-xs font-semibold rounded-full">
+              <span :class="user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                class="inline-flex px-2 py-1 text-xs font-semibold rounded-full">
                 {{ user.is_active ? 'Active' : 'Inactive' }}
               </span>
             </td>
@@ -68,13 +69,11 @@
               {{ formatDate(user.created_at) }}
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-              <button 
-                @click="toggleUserStatus(user)"
-                :class="user.is_active ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'"
-              >
+              <button @click="toggleUserStatus(user)"
+                :class="user.is_active ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'">
                 {{ user.is_active ? 'Deactivate' : 'Activate' }}
               </button>
-              <button class="text-blue-600 hover:text-blue-900">
+              <button @click="editUser(user)" class="text-blue-600 hover:text-blue-900">
                 Edit
               </button>
             </td>
@@ -83,11 +82,31 @@
       </table>
     </div>
   </div>
+
+  <UserModal v-model="showUserModal" :user="selectedUser" @close="showUserModal = false" />
+
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+
+import UserModal from './UserModal.vue'
+
+const showUserModal = ref(false)
+const selectedUser = ref<any | null>(null)
+
+const openNewUserModal = () => {
+  selectedUser.value = null
+  showUserModal.value = true
+}
+
+const editUser = (user: any) => {
+  selectedUser.value = user
+  showUserModal.value = true
+}
+
+
 
 const authStore = useAuthStore()
 
@@ -99,7 +118,7 @@ const users = ref<any[]>([])
 const loadUsers = async () => {
   try {
     loading.value = true
-    
+
     // Simulate API call
     setTimeout(() => {
       users.value = [
@@ -150,7 +169,7 @@ const loadUsers = async () => {
       ]
       loading.value = false
     }, 1000)
-    
+
   } finally {
     loading.value = false
   }

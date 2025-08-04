@@ -3,6 +3,22 @@ import { ref, onMounted, reactive } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { dashboardApi, handleAPIError } from '@/services/api'
 
+import OrderModal from './OrderModal.vue'
+
+const showOrderModal = ref(false)
+const editingOrder = ref<Order | null>(null)
+
+const openNewOrderModal = () => {
+  editingOrder.value = null
+  showOrderModal.value = true
+}
+
+const editOrder = (order: Order): void => {
+  editingOrder.value = order
+  showOrderModal.value = true
+}
+
+
 // Types - Puedes importarlos desde types/index.ts si los tienes
 interface Customer {
   id: number
@@ -85,17 +101,17 @@ const loadOrders = async (page: number = 1): Promise<void> => {
   try {
     loading.value = true
     error.value = ''
-    
+
     const params: any = { page }
-    
+
     if (filters.status) params.status = filters.status
     if (filters.search) params.search = filters.search
     if (filters.seller_id) params.seller_id = filters.seller_id
-    
+
     console.log('Loading orders with params:', params)
-    
+
     const response = await dashboardApi.getOrders(params)
-    
+
     if (response.success && response.data) {
       const data = response.data as any
       orders.value = data.data || []
@@ -125,9 +141,9 @@ const loadOrders = async (page: number = 1): Promise<void> => {
 const viewOrder = async (orderId: number): Promise<void> => {
   try {
     loadingOrderDetails.value = true
-    
+
     const response = await dashboardApi.getOrder(orderId)
-    
+
     if (response.success && response.data) {
       selectedOrder.value = response.data.data || response.data
       showModal.value = true
@@ -151,12 +167,6 @@ const debounceSearch = (): void => {
   searchTimeout = setTimeout(() => {
     loadOrders()
   }, 500)
-}
-
-// Edit order
-const editOrder = (order: Order): void => {
-  console.log('Edit order:', order)
-  // TODO: Implement edit functionality
 }
 
 // Close modal
@@ -231,7 +241,8 @@ onMounted(() => {
           {{ authStore.isAdmin ? 'Manage all orders from all sellers' : 'Manage your orders' }}
         </p>
       </div>
-      <button class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2">
+      <button @click="openNewOrderModal"
+        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
         </svg>
@@ -244,7 +255,9 @@ onMounted(() => {
       <div class="flex">
         <div class="flex-shrink-0">
           <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+            <path fill-rule="evenodd"
+              d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+              clip-rule="evenodd" />
           </svg>
         </div>
         <div class="ml-3">
@@ -253,10 +266,8 @@ onMounted(() => {
             <p>{{ error }}</p>
           </div>
           <div class="mt-3">
-            <button
-              @click="retryLoad"
-              class="bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1 rounded text-sm font-medium"
-            >
+            <button @click="retryLoad"
+              class="bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1 rounded text-sm font-medium">
               Try Again
             </button>
           </div>
@@ -274,15 +285,10 @@ onMounted(() => {
         <option value="delivered">Delivered</option>
         <option value="cancelled">Cancelled</option>
       </select>
-      
-      <input 
-        v-model="filters.search" 
-        @input="debounceSearch"
-        type="text" 
-        placeholder="Search orders..."
-        class="search-input"
-      >
-      
+
+      <input v-model="filters.search" @input="debounceSearch" type="text" placeholder="Search orders..."
+        class="search-input">
+
       <select v-if="authStore.isAdmin" v-model="filters.seller_id" @change="() => loadOrders()" class="form-select">
         <option value="">All Sellers</option>
         <option value="1">Super Admin</option>
@@ -305,7 +311,8 @@ onMounted(() => {
             <tr>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-              <th v-if="authStore.isAdmin" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Seller</th>
+              <th v-if="authStore.isAdmin"
+                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Seller</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
@@ -334,7 +341,8 @@ onMounted(() => {
                 €{{ formatCurrency(order.total) }}
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <span :class="getStatusClass(order.status)" class="inline-flex px-2 py-1 text-xs font-semibold rounded-full">
+                <span :class="getStatusClass(order.status)"
+                  class="inline-flex px-2 py-1 text-xs font-semibold rounded-full">
                   {{ translateStatus(order.status) }}
                 </span>
               </td>
@@ -342,17 +350,11 @@ onMounted(() => {
                 {{ formatDate(order.created_at) }}
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                <button 
-                  @click="viewOrder(order.id)"
-                  :disabled="loadingOrderDetails"
-                  class="text-blue-600 hover:text-blue-900 disabled:opacity-50"
-                >
+                <button @click="viewOrder(order.id)" :disabled="loadingOrderDetails"
+                  class="text-blue-600 hover:text-blue-900 disabled:opacity-50">
                   {{ loadingOrderDetails ? 'Loading...' : 'View' }}
                 </button>
-                <button 
-                  @click="editOrder(order)"
-                  class="text-green-600 hover:text-green-900"
-                >
+                <button @click="editOrder(order)" class="text-green-600 hover:text-green-900">
                   Edit
                 </button>
               </td>
@@ -368,18 +370,13 @@ onMounted(() => {
             Showing {{ pagination.from }} to {{ pagination.to }} of {{ pagination.total }} results
           </div>
           <div class="flex space-x-2">
-            <button 
-              @click="changePage(pagination.current_page - 1)"
-              :disabled="pagination.current_page === 1"
-              class="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-50"
-            >
+            <button @click="changePage(pagination.current_page - 1)" :disabled="pagination.current_page === 1"
+              class="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-50">
               Previous
             </button>
-            <button 
-              @click="changePage(pagination.current_page + 1)"
+            <button @click="changePage(pagination.current_page + 1)"
               :disabled="pagination.current_page === pagination.last_page"
-              class="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-50"
-            >
+              class="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-50">
               Next
             </button>
           </div>
@@ -390,7 +387,9 @@ onMounted(() => {
     <!-- Empty State -->
     <div v-if="!loading && !error && orders.length === 0" class="text-center py-12">
       <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2">
+        </path>
       </svg>
       <h3 class="mt-2 text-sm font-medium text-gray-900">No Orders Found</h3>
       <p class="mt-1 text-sm text-gray-500">Orders will appear here when customers make purchases.</p>
@@ -422,7 +421,8 @@ onMounted(() => {
                   <div>
                     <dt class="text-sm font-medium text-gray-500">Status</dt>
                     <dd>
-                      <span :class="getStatusClass(selectedOrder.status)" class="inline-flex px-2 py-1 text-xs font-semibold rounded-full">
+                      <span :class="getStatusClass(selectedOrder.status)"
+                        class="inline-flex px-2 py-1 text-xs font-semibold rounded-full">
                         {{ translateStatus(selectedOrder.status) }}
                       </span>
                     </dd>
@@ -439,11 +439,13 @@ onMounted(() => {
                 <dl class="space-y-2">
                   <div>
                     <dt class="text-sm font-medium text-gray-500">Name</dt>
-                    <dd class="text-sm text-gray-900">{{ selectedOrder.customer?.name || selectedOrder.customer_name || 'N/A' }}</dd>
+                    <dd class="text-sm text-gray-900">{{ selectedOrder.customer?.name || selectedOrder.customer_name ||
+                      'N/A' }}</dd>
                   </div>
                   <div>
                     <dt class="text-sm font-medium text-gray-500">Email</dt>
-                    <dd class="text-sm text-gray-900">{{ selectedOrder.customer?.email || selectedOrder.customer_email || 'N/A' }}</dd>
+                    <dd class="text-sm text-gray-900">{{ selectedOrder.customer?.email || selectedOrder.customer_email
+                      || 'N/A' }}</dd>
                   </div>
                   <div v-if="authStore.isAdmin && selectedOrder.seller">
                     <dt class="text-sm font-medium text-gray-500">Seller</dt>
@@ -468,10 +470,13 @@ onMounted(() => {
                   </thead>
                   <tbody class="bg-white divide-y divide-gray-200">
                     <tr v-for="item in selectedOrder.items" :key="item.id">
-                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ item.product_name || item.product?.name || 'N/A' }}</td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ item.product_name ||
+                        item.product?.name || 'N/A' }}</td>
                       <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ item.quantity }}</td>
-                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">€{{ formatCurrency(item.unit_price || item.price || 0) }}</td>
-                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">€{{ formatCurrency(item.total_price || (item.quantity * (item.unit_price || item.price || 0))) }}</td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">€{{ formatCurrency(item.unit_price
+                        || item.price || 0) }}</td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">€{{ formatCurrency(item.total_price
+                        || (item.quantity * (item.unit_price || item.price || 0))) }}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -506,4 +511,7 @@ onMounted(() => {
       </div>
     </div>
   </div>
+
+  <OrderModal v-model="showOrderModal" :order="editingOrder" @close="showOrderModal = false" />
+
 </template>
