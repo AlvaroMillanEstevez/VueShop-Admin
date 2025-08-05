@@ -21,9 +21,9 @@ VueShop Admin is a demo e-commerce administration dashboard built with **Vue 3**
 
 ## 🖼️ Screenshots
 
-| Auth | Dashboard | Products |
-|------|-----------|----------|
-| ![Dashboard](./screenshots/Captura de pantalla 2025-08-05 134217.png) | ![Orders](./screenshots/Captura de pantalla 2025-08-05 134233.png) | ![Customers](./screenshots/Captura de pantalla 2025-08-05 134243.png) | ![CustomerModal](./screenshots/Captura de pantalla 2025-08-05 134300.png)
+| Dashboard | Orders | Customers | CustomerModal |
+|------|-----------|----------|-------|
+| ![Dashboard](./screenshots/dashboard.png) | ![Orders](./screenshots/orders.png) | ![Customers](./screenshots/customers.png) | ![CustomerModal](./screenshots/customerModal.png) |
 
 ---
 
