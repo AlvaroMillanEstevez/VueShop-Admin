@@ -13,10 +13,10 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->string('ip_address', 45);
             $table->string('user_agent');
-            $table->string('device_type')->nullable(); // desktop, mobile, tablet
+            $table->string('device_type')->nullable();
             $table->string('browser')->nullable();
-            $table->string('platform')->nullable(); // Windows, Mac, Linux, iOS, Android
-            $table->string('location')->nullable(); // Ciudad/País basado en IP
+            $table->string('platform')->nullable();
+            $table->string('location')->nullable();
             $table->boolean('is_successful')->default(true);
             $table->timestamp('logged_in_at');
             $table->timestamp('logged_out_at')->nullable();

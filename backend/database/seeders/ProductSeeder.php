@@ -10,22 +10,22 @@ class ProductSeeder extends Seeder
 {
     public function run(): void
     {
-        echo "📦 Creando productos...\n";
+        echo "\n\ud83d\udce6 Creating products...\n";
 
         $managers = User::where('role', 'manager')->get();
 
         $productTemplates = [
             [
                 'name' => 'iPhone 15 Pro',
-                'description' => 'El último iPhone con chip A17 Pro y cámara avanzada',
+                'description' => 'The latest iPhone with A17 Pro chip and advanced camera',
                 'price' => 1199.99,
                 'stock' => 25,
                 'category' => 'Smartphones',
-                'image_url' => 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=400' // iPhone 15 Pro actual
+                'image_url' => 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=400'
             ],
             [
                 'name' => 'Samsung Galaxy S24',
-                'description' => 'Smartphone Android premium con AI integrada',
+                'description' => 'Premium Android smartphone with integrated AI',
                 'price' => 899.99,
                 'stock' => 30,
                 'category' => 'Smartphones',
@@ -33,7 +33,7 @@ class ProductSeeder extends Seeder
             ],
             [
                 'name' => 'MacBook Air M3',
-                'description' => 'Laptop ultraligera con chip M3 y 8GB RAM',
+                'description' => 'Ultralight laptop with M3 chip and 8GB RAM',
                 'price' => 1299.99,
                 'stock' => 15,
                 'category' => 'Laptops',
@@ -41,7 +41,7 @@ class ProductSeeder extends Seeder
             ],
             [
                 'name' => 'Dell XPS 13',
-                'description' => 'Laptop premium con procesador Intel i7',
+                'description' => 'Premium laptop with Intel i7 processor',
                 'price' => 1199.99,
                 'stock' => 12,
                 'category' => 'Laptops',
@@ -49,7 +49,7 @@ class ProductSeeder extends Seeder
             ],
             [
                 'name' => 'iPad Pro 12.9"',
-                'description' => 'Tablet profesional con chip M2 y pantalla Liquid Retina',
+                'description' => 'Professional tablet with M2 chip and Liquid Retina display',
                 'price' => 1099.99,
                 'stock' => 20,
                 'category' => 'Tablets',
@@ -57,7 +57,7 @@ class ProductSeeder extends Seeder
             ],
             [
                 'name' => 'AirPods Pro 2',
-                'description' => 'Auriculares inalámbricos con cancelación de ruido',
+                'description' => 'Wireless earbuds with noise cancellation',
                 'price' => 249.99,
                 'stock' => 50,
                 'category' => 'Audio',
@@ -65,7 +65,7 @@ class ProductSeeder extends Seeder
             ],
             [
                 'name' => 'Sony WH-1000XM5',
-                'description' => 'Auriculares over-ear con la mejor cancelación de ruido',
+                'description' => 'Over-ear headphones with best-in-class noise cancellation',
                 'price' => 399.99,
                 'stock' => 35,
                 'category' => 'Audio',
@@ -73,7 +73,7 @@ class ProductSeeder extends Seeder
             ],
             [
                 'name' => 'Apple Watch Series 9',
-                'description' => 'Smartwatch con GPS y monitoreo de salud avanzado',
+                'description' => 'Smartwatch with GPS and advanced health monitoring',
                 'price' => 429.99,
                 'stock' => 40,
                 'category' => 'Wearables',
@@ -81,7 +81,7 @@ class ProductSeeder extends Seeder
             ],
             [
                 'name' => 'Nintendo Switch OLED',
-                'description' => 'Consola híbrida con pantalla OLED de 7 pulgadas',
+                'description' => 'Hybrid console with 7-inch OLED display',
                 'price' => 349.99,
                 'stock' => 25,
                 'category' => 'Gaming',
@@ -89,7 +89,7 @@ class ProductSeeder extends Seeder
             ],
             [
                 'name' => 'PlayStation 5',
-                'description' => 'Consola de nueva generación con SSD ultrarrápido',
+                'description' => 'Next-gen console with ultra-fast SSD',
                 'price' => 499.99,
                 'stock' => 8,
                 'category' => 'Gaming',
@@ -97,7 +97,7 @@ class ProductSeeder extends Seeder
             ],
             [
                 'name' => 'Nike Air Max 270',
-                'description' => 'Zapatillas deportivas con amortiguación Air Max',
+                'description' => 'Sports shoes with Air Max cushioning',
                 'price' => 159.99,
                 'stock' => 45,
                 'category' => 'Fashion',
@@ -105,7 +105,7 @@ class ProductSeeder extends Seeder
             ],
             [
                 'name' => 'Adidas Ultraboost 22',
-                'description' => 'Zapatillas premium para running con boost technology',
+                'description' => 'Premium running shoes with boost technology',
                 'price' => 189.99,
                 'stock' => 35,
                 'category' => 'Fashion',
@@ -114,7 +114,7 @@ class ProductSeeder extends Seeder
         ];
 
         foreach ($managers as $user) {
-            // Cada manager tendrá una selección aleatoria de 6-9 productos
+            // Each manager will have a random selection of 6-9 products
             $userProducts = collect($productTemplates)->shuffle()->take(rand(6, 9));
 
             foreach ($userProducts as $index => $template) {
@@ -123,15 +123,15 @@ class ProductSeeder extends Seeder
                     'name' => $template['name'],
                     'description' => $template['description'],
                     'price' => round($template['price'] + rand(-50, 50), 2),
-                    'stock' => $template['stock'] + rand(-5, 10), // Variación en stock
+                    'stock' => $template['stock'] + rand(-5, 10),
                     'sku' => 'SKU-' . $user->id . '-' . str_pad($index + 1, 3, '0', STR_PAD_LEFT),
                     'category' => $template['category'],
                     'image_url' => $template['image_url'],
-                    'active' => rand(0, 10) > 1, // 90% activos
+                    'active' => rand(0, 10) > 1,
                 ]);
             }
 
-            echo "   ✅ " . $userProducts->count() . " productos para {$user->name}\n";
+            echo "   \u2705 " . $userProducts->count() . " products for {$user->name}\n";
         }
     }
 }

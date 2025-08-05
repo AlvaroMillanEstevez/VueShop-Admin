@@ -205,7 +205,7 @@ const formatDate = (dateString: string): string => {
 }
 
 const toggleUserStatus = (user: any) => {
-  // TODO: Implement API call to toggle user status
+  // Implement API call to toggle user status
   user.is_active = !user.is_active
 }
 

@@ -131,10 +131,6 @@
 
           <!-- Actions -->
           <div class="mt-4 flex space-x-2">
-            <button @click="viewProduct(product)"
-              class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-2 rounded text-sm font-medium transition-colors">
-              View
-            </button>
             <button v-if="canEditProduct(product)" @click="editProduct(product)"
               class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-medium transition-colors">
               Edit
@@ -207,7 +203,6 @@ const viewProduct = (product: Product): void => {
   showProductModal.value = true
 }
 
-// Función wrapper que maneja la promesa internamente
 const handleProductSaved = (): void => {
   loadProducts().catch(err => {
     console.error('Error reloading products:', err)

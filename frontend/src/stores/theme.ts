@@ -6,7 +6,6 @@ export const useThemeStore = defineStore('theme', () => {
   const isDark = ref<boolean>(false)
 
   const initTheme = (): void => {
-    // Verificar preferencia guardada o del sistema
     const savedTheme = localStorage.getItem('theme')
     const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
     

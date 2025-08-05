@@ -9,10 +9,10 @@ return new class extends Migration {
     {
         Schema::create('orders', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('customer_id')->constrained()->onDelete('cascade'); // Cliente
-            $table->foreignId('user_id')->constrained()->onDelete('cascade'); // Vendedor
+            $table->foreignId('customer_id')->constrained()->onDelete('cascade');
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->string('order_number')->unique();
-            $table->string('status')->default('pending'); // ejemplo de estado
+            $table->string('status')->default('pending');
             $table->decimal('total', 10, 2);
             $table->string('notes')->nullable();
             $table->decimal('subtotal', 10, 2)->default(0);

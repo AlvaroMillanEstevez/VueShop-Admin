@@ -15,7 +15,7 @@
             Admin</span>
         </div>
 
-        <!-- Botón cerrar en móvil -->
+        <!-- Close button on mobile -->
         <button @click="closeMobileSidebar"
           class="lg:hidden p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -23,7 +23,7 @@
           </svg>
         </button>
 
-        <!-- Botón colapsar en desktop -->
+        <!-- Collapse button on desktop -->
         <button @click="toggleSidebar"
           class="hidden lg:flex p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors z-50"
           :class="sidebarCollapsed ? 'ml-auto' : ''">
@@ -45,7 +45,7 @@
         </router-link>
       </nav>
 
-      <!-- User Info Section - ACTUALIZADA -->
+      <!-- User Info Section -->
       <div class="p-4 border-t border-gray-200">
         <div class="flex items-center" :class="sidebarCollapsed && !isMobile ? 'justify-center' : 'space-x-3'">
           <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
@@ -55,13 +55,13 @@
             </svg>
           </div>
           <div v-if="!sidebarCollapsed || isMobile" class="flex-1 min-w-0">
-            <div class="text-sm font-semibold text-gray-900">{{ authStore.user?.name || 'Usuario' }}</div>
+            <div class="text-sm font-semibold text-gray-900">{{ authStore.user?.name || 'User' }}</div>
             <div class="text-xs text-gray-500 capitalize flex items-center justify-between">
               <span :class="getRoleClass(authStore.user?.role)">
                 {{ getRoleLabel(authStore.user?.role) }}
               </span>
               <button @click="handleLogout" class="ml-2 text-xs text-red-500 hover:text-red-700 transition-colors"
-                title="Cerrar sesión">
+                title="Log out">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -71,11 +71,10 @@
           </div>
         </div>
 
-        <!-- Botón logout cuando está colapsado -->
+        <!-- Logout button when collapsed -->
         <div v-if="sidebarCollapsed && !isMobile" class="mt-2 flex justify-center">
           <button @click="handleLogout"
-            class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-            title="Cerrar sesión">
+            class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors" title="Log out">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -107,13 +106,13 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-              <input type="text" placeholder="Buscar..." class="search-input" />
+              <input type="text" placeholder="Search..." class="search-input" />
             </div>
 
             <!-- Theme Toggle -->
             <ThemeToggle />
 
-            <!-- User info en header cuando está colapsado -->
+            <!-- User info in header when collapsed -->
             <div v-if="sidebarCollapsed && !isMobile"
               class="hidden lg:flex items-center space-x-2 text-sm text-gray-600">
               <span>{{ authStore.user?.name }}</span>
@@ -178,32 +177,30 @@ const allMenuItems = [
   },
   {
     path: '/products',
-    name: 'Productos',
+    name: 'Products',
     icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
     roles: ['admin', 'manager']
   },
   {
     path: '/orders',
-    name: 'Pedidos',
+    name: 'Orders',
     icon: 'M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z',
     roles: ['admin', 'manager']
   },
   {
     path: '/customers',
-    name: 'Clientes',
+    name: 'Customers',
     icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z',
     roles: ['admin', 'manager']
   },
-  // Futuras opciones solo para admin
   {
     path: '/admin/users',
-    name: 'Gestión de Usuarios',
+    name: 'User Management',
     icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z',
     roles: ['admin']
   }
 ]
 
-// Filtrar menú según rol del usuario
 const filteredMenuItems = computed(() => {
   const userRole = authStore.user?.role || 'manager'
   return allMenuItems.filter(item => item.roles.includes(userRole))
@@ -255,7 +252,6 @@ const getCurrentPageTitle = () => {
   return currentItem?.name || 'Dashboard'
 }
 
-// Funciones para manejar auth
 const handleLogout = async () => {
   try {
     await authStore.logout()
@@ -267,10 +263,10 @@ const handleLogout = async () => {
 
 const getRoleLabel = (role: string | undefined) => {
   const labels = {
-    admin: 'Administrador',
+    admin: 'Admin',
     manager: 'Manager'
   }
-  return labels[role as keyof typeof labels] || 'Usuario'
+  return labels[role as keyof typeof labels] || 'User'
 }
 
 const getRoleClass = (role: string | undefined) => {
@@ -288,24 +284,20 @@ const getRoleClass = (role: string | undefined) => {
   z-index: 40;
 }
 
-/* Asegurar que el botón de colapsar siempre sea visible */
 .sidebar button {
   position: relative;
   z-index: 50;
 }
 
-/* Estilos para el menú colapsado */
 .nav-item {
   min-width: fit-content;
   white-space: nowrap;
 }
 
-/* Cuando está colapsado, centrar los iconos */
 .sidebar.w-20 .nav-item {
   justify-content: center;
 }
 
-/* Tooltip para items cuando está colapsado */
 .sidebar.w-20 .nav-item:hover::after {
   content: attr(title);
   position: absolute;
@@ -320,7 +312,6 @@ const getRoleClass = (role: string | undefined) => {
   z-index: 60;
 }
 
-/* Mejorar la transición */
 .sidebar * {
   transition: all 0.3s ease;
 }

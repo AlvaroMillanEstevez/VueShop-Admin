@@ -14,76 +14,75 @@ class OrderSeeder extends Seeder
 {
     public function run(): void
     {
-        echo "🛒 Creando pedidos...\n";
-        
-        // SOLO MANAGERS tendrán pedidos - Admin no tiene pedidos propios
+        echo "\n\ud83c\udf4e Creating orders...\n";
+
+        // ONLY MANAGERS will have orders - Admin does not have own orders
         $managers = User::where('role', 'manager')->get();
         $statuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
-        $statusWeights = [15, 25, 30, 25, 5]; // Probabilidades de cada estado
+        $statusWeights = [15, 25, 30, 25, 5]; // Probabilities of each status
 
-        // Obtener todos los customers (son globales, no pertenecen a un user específico)
+        // Retrieve all customers (they are global, not assigned to any user)
         $allCustomers = Customer::all();
-        
+
         if ($allCustomers->isEmpty()) {
-            echo "   ⚠️ No hay customers creados. Ejecuta CustomerSeeder primero.\n";
+            echo "   \u26a0\ufe0f No customers found. Please run CustomerSeeder first.\n";
             return;
         }
 
         foreach ($managers as $user) {
             $products = Product::where('user_id', $user->id)->get();
-            
+
             if ($products->isEmpty()) {
-                echo "   ⚠️ No hay productos para {$user->name}. Saltando...\n";
+                echo "   \u26a0\ufe0f No products found for {$user->name}. Skipping...\n";
                 continue;
             }
-            
-            // Crear entre 15-30 pedidos por usuario manager
+
+            // Create between 15-30 orders per manager
             $orderCount = rand(15, 30);
-            
+
             for ($i = 1; $i <= $orderCount; $i++) {
-                // Fecha aleatoria en los últimos 6 meses, con más pedidos recientes
+                // Random date within the last 6 months, favoring recent orders
                 $daysAgo = $this->getWeightedRandomDays();
                 $orderDate = Carbon::now()->subDays($daysAgo);
-                
-                // Seleccionar estado con probabilidades ponderadas
+
+                // Select status based on weighted probabilities
                 $statusIndex = $this->getWeightedRandomIndex($statusWeights);
                 $status = $statuses[$statusIndex];
-                
-                // Crear el pedido primero sin total
+
+                // Create the order first without total
                 $order = Order::create([
-                    'user_id' => $user->id, // Solo managers (vendedor)
-                    'customer_id' => $allCustomers->random()->id, // Customer aleatorio global
+                    'user_id' => $user->id,
+                    'customer_id' => $allCustomers->random()->id,
                     'order_number' => $this->generateOrderNumber($user->id, $i),
                     'status' => $status,
-                    'subtotal' => 0, // Se calculará después
+                    'subtotal' => 0,
                     'tax' => 0,
                     'shipping' => 0,
-                    'total' => 0, // Se calculará después
-                    'notes' => rand(0, 4) == 0 ? 'Pedido especial del cliente' : null,
+                    'total' => 0,
+                    'notes' => rand(0, 4) === 0 ? 'Special request from customer' : null,
                     'created_at' => $orderDate,
                     'updated_at' => $orderDate,
                 ]);
 
-                // Agregar entre 1-5 items por pedido
+                // Add 1-5 items per order
                 $itemCount = $this->getWeightedItemCount();
                 $usedProducts = collect();
                 $orderSubtotal = 0;
-                
+
                 for ($j = 0; $j < $itemCount; $j++) {
-                    // Evitar productos duplicados en el mismo pedido
+                    // Avoid duplicate products in the same order
                     $availableProducts = $products->whereNotIn('id', $usedProducts->pluck('id'));
                     if ($availableProducts->isEmpty()) {
                         break;
                     }
-                    
+
                     $product = $availableProducts->random();
                     $usedProducts->push($product);
-                    
+
                     $quantity = rand(1, 3);
                     $unitPrice = $product->price;
                     $totalPrice = $unitPrice * $quantity;
-                    
-                    // Crear el item
+
                     OrderItem::create([
                         'order_id' => $order->id,
                         'product_id' => $product->id,
@@ -91,25 +90,21 @@ class OrderSeeder extends Seeder
                         'unit_price' => $unitPrice,
                         'total_price' => $totalPrice,
                     ]);
-                    
-                    // Sumar al subtotal del pedido
+
                     $orderSubtotal += $totalPrice;
                 }
-                
-                // Calcular impuestos y envío (opcional)
-                $tax = round($orderSubtotal * 0.21, 2); // 21% IVA en España
-                $shipping = $orderSubtotal > 50 ? 0 : 5.99; // Envío gratis para pedidos > €50
+
+                $tax = round($orderSubtotal * 0.21, 2); // 21% VAT
+                $shipping = $orderSubtotal > 50 ? 0 : 5.99;
                 $orderTotal = $orderSubtotal + $tax + $shipping;
-                
-                // Actualizar el pedido con los totales calculados
+
                 $order->update([
                     'subtotal' => $orderSubtotal,
                     'tax' => $tax,
                     'shipping' => $shipping,
                     'total' => $orderTotal,
                 ]);
-                
-                // Actualizar fechas según el estado
+
                 if ($status === 'shipped') {
                     $order->update(['shipped_at' => $orderDate->copy()->addDays(rand(1, 3))]);
                 } elseif ($status === 'delivered') {
@@ -121,76 +116,61 @@ class OrderSeeder extends Seeder
                     ]);
                 }
             }
-            
-            echo "   ✅ {$orderCount} pedidos para {$user->name}\n";
+
+            echo "   \u2705 {$orderCount} orders created for {$user->name}\n";
         }
-        
-        echo "   ℹ️ Admin no tiene pedidos propios - solo puede ver todos los pedidos\n";
+
+        echo "   \u2139\ufe0f Admin has no own orders - can only view all orders\n";
     }
 
-    /**
-     * Generar número de pedido único por usuario
-     */
     private function generateOrderNumber($userId, $orderIndex)
     {
         return 'ORD-' . date('y') . $userId . '-' . str_pad($orderIndex, 4, '0', STR_PAD_LEFT);
     }
 
-    /**
-     * Obtener días aleatorios con peso hacia fechas más recientes
-     */
     private function getWeightedRandomDays()
     {
-        // Más pedidos recientes que antiguos
         $weights = [
-            [1, 7, 40],     // Última semana: 40%
-            [8, 30, 30],    // Último mes: 30%
-            [31, 90, 20],   // Últimos 3 meses: 20%
-            [91, 180, 10],  // Últimos 6 meses: 10%
+            [1, 7, 40],
+            [8, 30, 30],
+            [31, 90, 20],
+            [91, 180, 10],
         ];
-        
+
         $random = rand(1, 100);
         $cumulative = 0;
-        
+
         foreach ($weights as [$min, $max, $weight]) {
             $cumulative += $weight;
             if ($random <= $cumulative) {
                 return rand($min, $max);
             }
         }
-        
-        return rand(1, 30); // Fallback
+
+        return rand(1, 30);
     }
 
-    /**
-     * Seleccionar índice aleatorio basado en pesos
-     */
     private function getWeightedRandomIndex($weights)
     {
         $total = array_sum($weights);
         $random = rand(1, $total);
         $cumulative = 0;
-        
+
         foreach ($weights as $index => $weight) {
             $cumulative += $weight;
             if ($random <= $cumulative) {
                 return $index;
             }
         }
-        
-        return 0; // Fallback
+
+        return 0;
     }
 
-    /**
-     * Obtener cantidad de items por pedido con distribución realista
-     */
     private function getWeightedItemCount()
     {
-        // 1 item: 30%, 2 items: 40%, 3 items: 20%, 4+ items: 10%
         $weights = [30, 40, 20, 10];
         $index = $this->getWeightedRandomIndex($weights);
-        
-        // Mapear índices a cantidades
+
         $itemCounts = [1, 2, 3, rand(4, 5)];
         return $itemCounts[$index];
     }

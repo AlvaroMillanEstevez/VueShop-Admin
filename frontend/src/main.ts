@@ -4,7 +4,6 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 
-// Importar los estilos con Tailwind
 import './style.css'
 import '@/services/authCheck'
 

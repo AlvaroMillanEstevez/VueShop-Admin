@@ -16,8 +16,8 @@ class Order extends Model
      */
     protected $fillable = [
         'order_number',
-        'user_id',        // Seller ID (based on your migration)
-        'customer_id',    // Customer ID
+        'user_id',      
+        'customer_id',    
         'status',
         'subtotal',
         'tax',

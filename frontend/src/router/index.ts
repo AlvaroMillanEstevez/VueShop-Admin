@@ -4,16 +4,16 @@ import { useAuthStore } from '@/stores/auth'
 // Layout
 import AppLayout from '@/components/AppLayout.vue'
 
-// Vistas existentes
+// views
 import Dashboard from '@/views/Dashboard.vue'
 import Products from '@/views/Products.vue'
 import Orders from '@/views/Orders.vue'
 import Customers from '@/views/Customers.vue'
 
-// Vista admin
+// admin view
 import UsersView from '@/views/admin/UsersView.vue'
 
-// Vistas de auth
+// auth views
 import LoginView from '@/views/auth/LoginView.vue'
 import RegisterView from '@/views/auth/RegisterView.vue'
 
@@ -69,7 +69,7 @@ const router = createRouter({
         }
       ]
     },
-    // Catch all route - debe ir al final
+    // Catch all route
     {
       path: '/:pathMatch(.*)*',
       redirect: '/dashboard'
@@ -90,7 +90,6 @@ router.beforeEach(async (to, from, next) => {
   })
   
   try {
-    // Si hay un token pero no estamos autenticados, intentar inicializar
     if (authStore.token && !authStore.isAuthenticated && !authStore.sessionExpired) {
       console.log('Initializing auth...')
       const initialized = await authStore.initialize()
@@ -102,13 +101,12 @@ router.beforeEach(async (to, from, next) => {
       if (!authStore.isAuthenticated) {
         console.log('Route requires auth but user not authenticated, redirecting to login')
         
-        // Si la sesión expiró, agregar parámetro de mensaje
+        // if session expire
         const query: any = {}
         if (authStore.sessionExpired) {
           query.message = 'session_expired'
         }
         
-        // Guardar la ruta de destino para redireccionar después del login
         if (to.path !== '/dashboard') {
           query.redirect = to.fullPath
         }
@@ -120,7 +118,7 @@ router.beforeEach(async (to, from, next) => {
         return
       }
       
-      // Verificar que el usuario sigue siendo válido
+      // Verify user still valid
       if (!authStore.user) {
         console.log('User data is missing, redirecting to login')
         next({
@@ -165,11 +163,10 @@ router.beforeEach(async (to, from, next) => {
   } catch (error) {
     console.error('Router navigation error:', error)
     
-    // Si hay error durante la navegación, limpiar auth y redirigir a login
     if (to.meta.requiresAuth) {
       console.log('Auth error during navigation, clearing state and redirecting to login')
       
-      // Usar handleTokenExpiration para limpiar correctamente
+      // Use handleTokenExpiration to clear correctly
       await authStore.handleTokenExpiration()
       
       next({

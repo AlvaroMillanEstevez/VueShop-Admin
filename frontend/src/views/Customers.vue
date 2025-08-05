@@ -127,7 +127,7 @@ const {
 const showModal = ref(false)
 const showCreateModal = ref(false)
 const selectedCustomer = ref<Customer | null>(null)
-const isEditingLocal = ref(false) // Cambiado de isEditing a isEditingLocal
+const isEditingLocal = ref(false)
 
 // Event handlers
 const handleView = async (customer: Customer) => {

@@ -46,7 +46,7 @@ class Product extends Model
     }
 
     /**
-     * Scope para filtrar por usuario actual
+     * Scope filter for current user
      */
     public function scopeForUser($query, $userId)
     {
@@ -54,7 +54,7 @@ class Product extends Model
     }
 
     /**
-     * Scope para productos activos
+     * Scope active products
      */
     public function scopeActive($query)
     {
@@ -62,7 +62,7 @@ class Product extends Model
     }
 
     /**
-     * Scope para productos con stock bajo
+     * Scope low stock products
      */
     public function scopeLowStock($query, $threshold = 10)
     {

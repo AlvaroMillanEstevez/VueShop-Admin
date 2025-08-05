@@ -1,9 +1,9 @@
-/* Directivas de Tailwind */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Importar Inter font */
+/*Inter font */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 /* ============ DARK THEME VARIABLES ============ */
@@ -42,7 +42,6 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    /* Transiciones suaves para el cambio de tema */
     transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
   }
 
@@ -103,7 +102,7 @@
 
 }
 
-/* ============ COMPONENTES CON DARK THEME ============ */
+/* ============ COMPONENTs DARK THEME ============ */
 @layer components {
   .dashboard-container {
     @apply max-w-[1600px] mx-auto;
@@ -214,7 +213,6 @@
     opacity: 0.6;
   }
 
-  /* Input de búsqueda específico */
   .search-input {
     @apply pl-10 pr-4 py-2 border rounded-lg text-sm focus:ring-1 focus:ring-blue-500 w-64;
     background-color: var(--bg-secondary);
@@ -232,7 +230,6 @@
     border-color: #3b82f6;
   }
 
-  /* Auth inputs específicos */
   .auth-input {
     @apply appearance-none relative block w-full px-3 py-2 border focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm;
     background-color: var(--bg-primary);
@@ -297,7 +294,6 @@
     box-shadow: 0 0 0 1px #3b82f6;
   }
 
-  /* Checkbox y radio buttons */
   .form-checkbox {
     @apply h-4 w-4 text-blue-600 focus:ring-blue-500 border rounded;
     border-color: var(--border-color);
@@ -475,10 +471,9 @@
   }
 }
 
-/* ============ UTILIDADES CON DARK THEME ============ */
+/* ============ DARK THEME ============ */
 @layer utilities {
 
-  /* Overrides para clases de Tailwind con variables CSS */
   .bg-white {
     background-color: var(--bg-primary) !important;
   }
@@ -519,7 +514,6 @@
     box-shadow: var(--shadow-lg) !important;
   }
 
-  /* Stat cards con gradientes que funcionan en dark */
   .stat-card {
     transition: all 0.2s ease;
     background-color: var(--bg-primary);
@@ -545,7 +539,6 @@
     background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
   }
 
-  /* Input utilities adicionales */
   .input-error {
     border-color: #ef4444 !important;
     box-shadow: 0 0 0 1px #ef4444 !important;
@@ -576,7 +569,6 @@
   }
 }
 
-/* Animaciones */
 @keyframes spin {
   0% {
     transform: rotate(0deg);

@@ -4,16 +4,16 @@ import router from '@/router'
 
 class AuthCheckService {
   private checkInterval: number | null = null
-  private readonly CHECK_INTERVAL_MS = 60000 // 1 minuto
+  private readonly CHECK_INTERVAL_MS = 60000 // 1 minute
   private isChecking = false
 
   start() {
     console.log('Starting auth check service...')
-    
-    // Verificar inmediatamente al inicio
+
+    // Immediately check auth status on start
     this.checkAuthStatus()
-    
-    // Configurar verificación periódica
+
+    // Set up periodic check
     this.checkInterval = window.setInterval(() => {
       this.checkAuthStatus()
     }, this.CHECK_INTERVAL_MS)
@@ -21,7 +21,7 @@ class AuthCheckService {
 
   stop() {
     console.log('Stopping auth check service...')
-    
+
     if (this.checkInterval) {
       clearInterval(this.checkInterval)
       this.checkInterval = null
@@ -29,12 +29,12 @@ class AuthCheckService {
   }
 
   private async checkAuthStatus() {
-    // Evitar múltiples verificaciones simultáneas
+    // Prevent multiple concurrent checks
     if (this.isChecking) return
-    
+
     const authStore = useAuthStore()
-    
-    // Solo verificar si estamos supuestamente autenticados
+
+    // Only check if supposedly authenticated
     if (!authStore.isAuthenticated || !authStore.token) {
       return
     }
@@ -43,8 +43,8 @@ class AuthCheckService {
 
     try {
       console.log('Checking auth status...')
-      
-      // Intentar obtener el perfil para verificar que el token sigue válido
+
+      // Try to fetch profile to validate token
       const response = await fetch('http://localhost:8000/api/auth/profile', {
         method: 'GET',
         headers: {
@@ -52,7 +52,7 @@ class AuthCheckService {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        // Timeout más corto para verificaciones periódicas
+        // Shorter timeout for periodic checks
         signal: AbortSignal.timeout(10000)
       })
 
@@ -66,13 +66,13 @@ class AuthCheckService {
       }
 
     } catch (error) {
-      // Solo manejar como expiración si es un error 401 explícito
+      // Only treat as expiration if explicitly a 401 error
       if (error instanceof Error && error.message.includes('401')) {
         console.log('Token expired detected via error in auth check')
         await this.handleTokenExpiration()
       } else {
         console.warn('Auth check failed with network error:', error)
-        // No hacer nada en caso de errores de red temporales
+        // Ignore temporary network issues
       }
     } finally {
       this.isChecking = false
@@ -81,19 +81,19 @@ class AuthCheckService {
 
   private async handleTokenExpiration() {
     console.log('Handling token expiration from auth check service')
-    
+
     try {
       const authStore = useAuthStore()
       await authStore.handleTokenExpiration()
-      
-      // Solo redirigir si estamos en una ruta protegida
+
+      // Only redirect if on a protected route
       const currentRoute = router.currentRoute.value
       if (currentRoute.meta.requiresAuth) {
         console.log('Redirecting to login due to expired token')
-        
+
         router.push({
           name: 'login',
-          query: { 
+          query: {
             message: 'session_expired',
             redirect: currentRoute.fullPath !== '/dashboard' ? currentRoute.fullPath : undefined
           }
@@ -105,18 +105,18 @@ class AuthCheckService {
   }
 }
 
-// Crear instancia singleton
+// Create singleton instance
 export const authCheckService = new AuthCheckService()
 
-// Auto-inicializar cuando se importa el módulo
-// (solo en producción o cuando específicamente se habilite)
+// Auto-initialize on module import
+// (only in production or when specifically enabled)
 if (import.meta.env.PROD || import.meta.env.VITE_AUTH_CHECK === 'true') {
-  // Iniciar después de un pequeño delay para asegurar que la app esté cargada
+  // Start after a slight delay to ensure the app is loaded
   setTimeout(() => {
     authCheckService.start()
   }, 5000)
 
-  // Limpiar al descargar la página
+  // Clean up on page unload
   window.addEventListener('beforeunload', () => {
     authCheckService.stop()
   })

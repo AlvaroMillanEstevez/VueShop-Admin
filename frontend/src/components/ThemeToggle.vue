@@ -2,9 +2,9 @@
   <button
     @click="themeStore.toggleTheme()"
     class="p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center"
-    :title="themeStore.isDark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'"
+    :title="themeStore.isDark ? 'switch to light mode' : 'switch to dark mode'"
   >
-    <!-- Sol (light mode) -->
+    <!-- Sun (light mode) -->
     <svg
       v-if="themeStore.isDark"
       class="w-5 h-5 text-gray-600 dark:text-gray-300 transition-transform hover:rotate-12"
@@ -20,7 +20,7 @@
       />
     </svg>
     
-    <!-- Luna (dark mode) -->
+    <!-- Moon (dark mode) -->
     <svg
       v-else
       class="w-5 h-5 text-gray-600 dark:text-gray-300 transition-transform hover:rotate-12"

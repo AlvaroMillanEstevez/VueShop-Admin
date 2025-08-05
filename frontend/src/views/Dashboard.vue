@@ -37,7 +37,7 @@
 
     <!-- Dashboard Content -->
     <div v-else-if="!error">
-      <!-- Stats Cards - CORREGIDAS -->
+      <!-- Stats Cards -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <!-- Total Revenue -->
         <div class="bg-white overflow-hidden shadow rounded-lg">
@@ -287,7 +287,7 @@ const recentOrders = ref<Order[]>([])
 const chartCanvas = ref<HTMLCanvasElement | null>(null)
 let chart: any = null
 
-// Load dashboard data - FUNCIÓN COMPLETAMENTE CORREGIDA
+// Load dashboard data
 const loadDashboardData = async (): Promise<void> => {
   try {
     loading.value = true
@@ -303,12 +303,10 @@ const loadDashboardData = async (): Promise<void> => {
       dashboardApi.getRecentOrders()
     ])
     
-    // Handle stats - CORREGIDO: Acceder a statsResponse.data.data
+    // Handle stats
     console.log('Stats response completa:', statsResponse)
     
     if (statsResponse.success && statsResponse.data) {
-      // PROBLEMA: statsResponse.data contiene {success: true, data: {...}}
-      // Necesitamos acceder a statsResponse.data.data
       const actualStatsData = statsResponse.data.data || statsResponse.data
       console.log('Actual stats data:', actualStatsData)
       
@@ -324,7 +322,7 @@ const loadDashboardData = async (): Promise<void> => {
         products_in_stock: parseInt(actualStatsData.products_in_stock || 0)
       }
       
-      console.log('Stats procesadas correctamente:', stats.value)
+      console.log('Stats successfully processed:', stats.value)
     } else {
       console.error('Stats response failed:', statsResponse)
       stats.value = {
@@ -335,10 +333,9 @@ const loadDashboardData = async (): Promise<void> => {
       }
     }
     
-    // Handle sales data - CORREGIDO: Acceder a salesResponse.data.data
+    // Handle sales data
     console.log('Sales response:', salesResponse)
     if (salesResponse.success && salesResponse.data) {
-      // PROBLEMA: salesResponse.data contiene {success: true, data: [...]}
       const actualSalesData = salesResponse.data.data || salesResponse.data
       console.log('Actual sales data:', actualSalesData)
       
@@ -355,10 +352,9 @@ const loadDashboardData = async (): Promise<void> => {
     
     console.log('Final salesData:', salesData.value, 'Length:', salesData.value.length)
     
-    // Handle top products - CORREGIDO: Acceder a productsResponse.data.data
+    // Handle top products
     console.log('Products response:', productsResponse)
     if (productsResponse.success && productsResponse.data) {
-      // PROBLEMA: productsResponse.data contiene {success: true, data: [...]}
       const actualProductsData = productsResponse.data.data || productsResponse.data
       console.log('Actual products data:', actualProductsData)
       
@@ -371,10 +367,9 @@ const loadDashboardData = async (): Promise<void> => {
       console.log('Top products loaded:', topProducts.value.length)
     }
     
-    // Handle recent orders - CORREGIDO: Acceder a ordersResponse.data.data
+    // Handle recent orders 
     console.log('Orders response:', ordersResponse)
     if (ordersResponse.success && ordersResponse.data) {
-      // PROBLEMA: ordersResponse.data contiene {success: true, data: [...]}
       const actualOrdersData = ordersResponse.data.data || ordersResponse.data
       console.log('Actual orders data:', actualOrdersData)
       
@@ -412,7 +407,7 @@ const loadDashboardData = async (): Promise<void> => {
   }
 }
 
-// Create sales chart - FUNCIÓN CORREGIDA
+// Create sales chart
 const createChart = async (): Promise<void> => {
   try {
     chartError.value = ''

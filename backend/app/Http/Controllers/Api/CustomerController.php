@@ -8,13 +8,13 @@ use Illuminate\Http\JsonResponse;
 use App\Models\Customer;
 use App\Models\Order;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Log;
+
 
 class CustomerController extends Controller
 {
     /**
-     * Display a listing of customers.
-     * Todos los usuarios autenticados pueden ver todos los clientes.
-     * Los clientes son entidades independientes, no pertenecen a usuarios específicos.
+     * Retrieve a list of customers.
      */
     public function index(Request $request): JsonResponse
     {
@@ -27,7 +27,7 @@ class CustomerController extends Controller
                 ], 401);
             }
 
-            // Verificar que el usuario tenga un rol válido
+            // Check if user has a valid role
             if (!in_array($user->role, ['admin', 'manager', 'seller'])) {
                 return response()->json([
                     'success' => false,
@@ -35,18 +35,18 @@ class CustomerController extends Controller
                 ], 403);
             }
 
-            // Query base - todos los clientes con sus estadísticas de pedidos
+            // Base query - all customers with order statistics
             $query = Customer::query()
                 ->withCount('orders')
                 ->withSum('orders', 'total');
 
-            // Aplicar búsqueda si se proporciona
+            // Apply search filter if provided
             if ($request->filled('search')) {
                 $search = $request->search;
                 $query->search($search);
             }
 
-            // Filtros adicionales opcionales
+            // Additional optional filters
             if ($request->filled('has_orders')) {
                 if ($request->has_orders === 'true') {
                     $query->withOrders();
@@ -55,13 +55,13 @@ class CustomerController extends Controller
                 }
             }
 
-            // Ordenar por fecha de creación (más recientes primero)
+            // Order by creation date (most recent first)
             $query->orderBy('created_at', 'desc');
 
-            // Paginar resultados
+            // Paginate results
             $customers = $query->paginate(15);
 
-            // Transformar los datos
+            // Transform data
             $transformedCustomers = $customers->getCollection()->map(function ($customer) {
                 return [
                     'id' => $customer->id,
@@ -90,14 +90,13 @@ class CustomerController extends Controller
                 'from' => $customers->firstItem(),
                 'to' => $customers->lastItem(),
             ]);
-            
         } catch (\Exception $e) {
-            \Log::error('Error loading customers: ' . $e->getMessage(), [
+            Log::error('Error loading customers: ' . $e->getMessage(), [
                 'user_id' => $request->user()?->id,
                 'request' => $request->all(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to load customers',
@@ -105,34 +104,34 @@ class CustomerController extends Controller
             ], 500);
         }
     }
-    
+
     /**
-     * Display the specified customer with recent orders.
+     * Retrieve the specified customer with recent orders.
      */
     public function show(Request $request, $id): JsonResponse
     {
         try {
             $user = $request->user();
-            
-            // Verificar permisos básicos
+
+            // Check basic permissions
             if (!in_array($user->role, ['admin', 'manager', 'seller'])) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Access denied'
                 ], 403);
             }
-            
-            // Obtener cliente con sus pedidos recientes
+
+            // Get customer with recent orders
             $customer = Customer::with(['orders' => function ($query) {
-                $query->with(['items.product', 'seller']) // Incluir vendedor del pedido
+                $query->with(['items.product', 'seller'])
                       ->orderBy('created_at', 'desc')
                       ->limit(10);
             }])
             ->withCount('orders')
             ->withSum('orders', 'total')
             ->findOrFail($id);
-            
-            // Transformar datos del cliente
+
+            // Transform customer data
             $customerData = [
                 'id' => $customer->id,
                 'name' => $customer->name,
@@ -159,23 +158,22 @@ class CustomerController extends Controller
                     ];
                 })
             ];
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $customerData
             ]);
-            
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Customer not found'
             ], 404);
         } catch (\Exception $e) {
-            \Log::error('Error loading customer: ' . $e->getMessage(), [
+            Log::error('Error loading customer: ' . $e->getMessage(), [
                 'customer_id' => $id,
                 'user_id' => $request->user()?->id
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to load customer',
@@ -183,23 +181,23 @@ class CustomerController extends Controller
             ], 500);
         }
     }
-    
+
     /**
-     * Store a newly created customer.
+     * Create a new customer.
      */
     public function store(Request $request): JsonResponse
     {
         try {
             $user = $request->user();
-            
-            // Verificar permisos
+
+            // Check permissions
             if (!in_array($user->role, ['admin', 'manager', 'seller'])) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Access denied'
                 ], 403);
             }
-            
+
             $request->validate([
                 'name' => 'required|string|max:255',
                 'email' => 'required|string|email|max:255',
@@ -209,8 +207,8 @@ class CustomerController extends Controller
                 'country' => 'nullable|string|max:100',
                 'notes' => 'nullable|string|max:1000',
             ]);
-            
-            // Los clientes son independientes, no se asignan a usuarios
+
+            // Customers are independent; not linked to users
             $customer = Customer::create([
                 'name' => $request->name,
                 'email' => $request->email,
@@ -220,13 +218,12 @@ class CustomerController extends Controller
                 'country' => $request->country ?? 'Spain',
                 'notes' => $request->notes,
             ]);
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $customer,
                 'message' => 'Customer created successfully'
             ], 201);
-            
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,
@@ -234,8 +231,8 @@ class CustomerController extends Controller
                 'errors' => $e->errors()
             ], 422);
         } catch (\Exception $e) {
-            \Log::error('Error creating customer: ' . $e->getMessage());
-            
+            Log::error('Error creating customer: ' . $e->getMessage());
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to create customer',
@@ -243,7 +240,7 @@ class CustomerController extends Controller
             ], 500);
         }
     }
-    
+
     /**
      * Update the specified customer.
      */
@@ -251,17 +248,17 @@ class CustomerController extends Controller
     {
         try {
             $user = $request->user();
-            
-            // Verificar permisos
+
+            // Check permissions
             if (!in_array($user->role, ['admin', 'manager', 'seller'])) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Access denied'
                 ], 403);
             }
-            
+
             $customer = Customer::findOrFail($id);
-            
+
             $request->validate([
                 'name' => 'sometimes|required|string|max:255',
                 'email' => 'sometimes|required|string|email|max:255',
@@ -271,17 +268,16 @@ class CustomerController extends Controller
                 'country' => 'nullable|string|max:100',
                 'notes' => 'nullable|string|max:1000',
             ]);
-            
+
             $customer->update($request->only([
                 'name', 'email', 'phone', 'address', 'city', 'country', 'notes'
             ]));
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $customer->fresh(),
                 'message' => 'Customer updated successfully'
             ]);
-            
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
@@ -294,8 +290,8 @@ class CustomerController extends Controller
                 'errors' => $e->errors()
             ], 422);
         } catch (\Exception $e) {
-            \Log::error('Error updating customer: ' . $e->getMessage());
-            
+            Log::error('Error updating customer: ' . $e->getMessage());
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update customer',
@@ -303,50 +299,48 @@ class CustomerController extends Controller
             ], 500);
         }
     }
-    
+
     /**
-     * Remove the specified customer.
-     * Solo se permite si no tiene pedidos asociados.
+     * Delete the specified customer.
+     * Only allowed if the customer has no associated orders.
      */
     public function destroy(Request $request, $id): JsonResponse
     {
         try {
             $user = $request->user();
-            
-            // Verificar permisos - solo admin puede eliminar clientes
+
+            // Only admin can delete customers
             if ($user->role !== 'admin') {
                 return response()->json([
                     'success' => false,
                     'message' => 'Access denied. Only administrators can delete customers.'
                 ], 403);
             }
-            
+
             $customer = Customer::findOrFail($id);
-            
-            // Verificar si tiene pedidos
+
+            // Check if the customer has any orders
             if ($customer->orders()->count() > 0) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Cannot delete customer with existing orders. Customer has ' . $customer->orders()->count() . ' orders.'
                 ], 400);
             }
-            
+
             $customer->delete();
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Customer deleted successfully'
             ]);
-            
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Customer not found'
             ], 404);
-            
         } catch (\Exception $e) {
-            \Log::error('Error deleting customer: ' . $e->getMessage());
-            
+            Log::error('Error deleting customer: ' . $e->getMessage());
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to delete customer',
@@ -356,13 +350,13 @@ class CustomerController extends Controller
     }
 
     /**
-     * Get customer statistics
+     * Retrieve customer statistics.
      */
     public function stats(Request $request): JsonResponse
     {
         try {
             $user = $request->user();
-            
+
             if (!in_array($user->role, ['admin', 'manager', 'seller'])) {
                 return response()->json([
                     'success' => false,
@@ -390,10 +384,9 @@ class CustomerController extends Controller
                 'success' => true,
                 'data' => $stats
             ]);
-
         } catch (\Exception $e) {
-            \Log::error('Error loading customer stats: ' . $e->getMessage());
-            
+            Log::error('Error loading customer stats: ' . $e->getMessage());
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to load customer statistics',

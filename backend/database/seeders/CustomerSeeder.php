@@ -12,9 +12,9 @@ class CustomerSeeder extends Seeder
      */
     public function run(): void
     {
-        echo "👥 Creando customers...\n";
-        
-        // Lista de clientes de ejemplo - son GLOBALES, no pertenecen a ningún usuario
+        echo "\n👥 Creating customers...\n";
+
+        // List of customers for testing - not assigned to any seller and contains fake data.
         $customers = [
             [
                 'name' => 'Ana García López',
@@ -22,8 +22,8 @@ class CustomerSeeder extends Seeder
                 'phone' => '+34 666 111 222',
                 'address' => 'Calle Mayor 123',
                 'city' => 'Madrid',
-                'country' => 'España',
-                'notes' => 'Cliente con historial frecuente de compras.'
+                'country' => 'Spain',
+                'notes' => 'Customer with frequent purchase history.'
             ],
             [
                 'name' => 'Pedro Martínez Ruiz',
@@ -31,7 +31,7 @@ class CustomerSeeder extends Seeder
                 'phone' => '+34 666 333 444',
                 'address' => 'Av. Constitución 45',
                 'city' => 'Barcelona',
-                'country' => 'España',
+                'country' => 'Spain',
                 'notes' => null
             ],
             [
@@ -40,8 +40,8 @@ class CustomerSeeder extends Seeder
                 'phone' => '+34 666 555 666',
                 'address' => 'Plaza España 78',
                 'city' => 'Valencia',
-                'country' => 'España',
-                'notes' => 'Solicita factura electrónica siempre.'
+                'country' => 'Spain',
+                'notes' => 'Always requests electronic invoices.'
             ],
             [
                 'name' => 'Miguel Ángel Torres',
@@ -49,7 +49,7 @@ class CustomerSeeder extends Seeder
                 'phone' => '+34 666 777 888',
                 'address' => 'Calle Alcalá 234',
                 'city' => 'Madrid',
-                'country' => 'España',
+                'country' => 'Spain',
                 'notes' => null
             ],
             [
@@ -57,9 +57,9 @@ class CustomerSeeder extends Seeder
                 'email' => 'isabel.moreno@email.com',
                 'phone' => '+34 666 999 000',
                 'address' => 'Gran Vía 567',
-                'city' => 'Sevilla',
-                'country' => 'España',
-                'notes' => 'Interesada en productos ecológicos.'
+                'city' => 'Seville',
+                'country' => 'Spain',
+                'notes' => 'Interested in eco-friendly products.'
             ],
             [
                 'name' => 'Roberto Jiménez Vega',
@@ -67,7 +67,7 @@ class CustomerSeeder extends Seeder
                 'phone' => '+34 677 111 222',
                 'address' => 'Paseo de Gracia 89',
                 'city' => 'Barcelona',
-                'country' => 'España',
+                'country' => 'Spain',
                 'notes' => null
             ],
             [
@@ -76,8 +76,8 @@ class CustomerSeeder extends Seeder
                 'phone' => '+34 677 333 444',
                 'address' => 'Calle de la Paz 12',
                 'city' => 'Bilbao',
-                'country' => 'España',
-                'notes' => 'Prefiere contacto vía email.'
+                'country' => 'Spain',
+                'notes' => 'Prefers email contact.'
             ],
             [
                 'name' => 'Francisco Herrera Díaz',
@@ -85,7 +85,7 @@ class CustomerSeeder extends Seeder
                 'phone' => '+34 677 555 666',
                 'address' => 'Rambla de Catalunya 345',
                 'city' => 'Barcelona',
-                'country' => 'España',
+                'country' => 'Spain',
                 'notes' => null
             ],
             [
@@ -94,8 +94,8 @@ class CustomerSeeder extends Seeder
                 'phone' => '+34 677 777 888',
                 'address' => 'Calle Sol 99',
                 'city' => 'Valencia',
-                'country' => 'España',
-                'notes' => 'Cliente VIP desde 2020.'
+                'country' => 'Spain',
+                'notes' => 'VIP customer since 2020.'
             ],
             [
                 'name' => 'Carlos Vázquez Romero',
@@ -103,7 +103,7 @@ class CustomerSeeder extends Seeder
                 'phone' => '+34 677 999 000',
                 'address' => 'Av. Libertad 156',
                 'city' => 'Zaragoza',
-                'country' => 'España',
+                'country' => 'Spain',
                 'notes' => null
             ],
             [
@@ -112,8 +112,8 @@ class CustomerSeeder extends Seeder
                 'phone' => '+34 688 111 222',
                 'address' => 'Plaza del Carmen 23',
                 'city' => 'Granada',
-                'country' => 'España',
-                'notes' => 'Prefiere entrega en horario de mañana.'
+                'country' => 'Spain',
+                'notes' => 'Prefers morning deliveries.'
             ],
             [
                 'name' => 'Alejandro Muñoz López',
@@ -121,20 +121,19 @@ class CustomerSeeder extends Seeder
                 'phone' => '+34 688 333 444',
                 'address' => 'Calle Nueva 67',
                 'city' => 'Málaga',
-                'country' => 'España',
+                'country' => 'Spain',
                 'notes' => null
             ]
         ];
 
         foreach ($customers as $data) {
-            // Los customers son globales - solo verificamos por email
             Customer::firstOrCreate(
-                ['email' => $data['email']], // Solo verificar email, sin user_id
+                ['email' => $data['email']],
                 $data
             );
         }
 
-        echo "   ✅ Creados " . count($customers) . " customers\n";
-        echo "   ℹ️ Los customers son globales - cualquier vendedor puede procesarles pedidos\n";
+        echo "   ✅ Created " . count($customers) . " customers\n";
+        echo "   ℹ️ Customers are global - any seller can process their orders\n";
     }
 }

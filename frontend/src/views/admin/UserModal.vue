@@ -1,28 +1,28 @@
 <template>
   <div v-if="visible" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
     <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg w-full max-w-lg">
-      <h2 class="text-xl font-semibold mb-4">{{ isEdit ? 'Editar Usuario' : 'Nuevo Usuario' }}</h2>
+      <h2 class="text-xl font-semibold mb-4">{{ isEdit ? 'Edit User' : 'New User' }}</h2>
 
       <form @submit.prevent="handleSubmit">
         <div class="grid grid-cols-1 gap-4">
-          <input v-model="form.name" class="form-input" placeholder="Nombre completo" />
-          <input v-model="form.email" class="form-input" type="email" placeholder="Correo electrónico" />
-          <input v-if="!isEdit" v-model="form.password" class="form-input" type="password" placeholder="Contraseña" />
-          <select v-model="form.role" class="form-select">
-            <option disabled value="">Seleccione rol</option>
-            <option value="admin">Administrador</option>
-            <option value="user">Usuario</option>
+          <input v-model="form.name" class="input-field" placeholder="Full Name" />
+          <input v-model="form.email" class="input-field" type="email" placeholder="Email Address" />
+          <input v-if="!isEdit" v-model="form.password" class="input-field" type="password" placeholder="Password" />
+          <select v-model="form.role" class="select-field">
+            <option disabled value="">Select Role</option>
+            <option value="admin">Administrator</option>
+            <option value="user">User</option>
           </select>
-          <select v-model="form.is_active" class="form-select">
-            <option :value="true">Activo</option>
-            <option :value="false">Inactivo</option>
+          <select v-model="form.is_active" class="select-field">
+            <option :value="true">Active</option>
+            <option :value="false">Inactive</option>
           </select>
         </div>
 
         <div class="flex justify-end gap-3 mt-6">
-          <button type="button" @click="$emit('close')" class="bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-white px-4 py-2 rounded-xl">Cancelar</button>
-          <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-xl shadow">
-            {{ isEdit ? 'Actualizar' : 'Crear' }}
+          <button type="button" @click="$emit('close')" class="btn-secondary">Cancel</button>
+          <button type="submit" class="btn-primary">
+            {{ isEdit ? 'Update' : 'Create' }}
           </button>
         </div>
       </form>
@@ -78,7 +78,7 @@ const handleSubmit = async () => {
     emit('saved')
     emit('close')
   } catch (err) {
-    console.error('Error guardando usuario:', err)
+    console.error('Error saving user:', err)
   }
 }
 </script>

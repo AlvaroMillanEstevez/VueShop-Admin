@@ -8,6 +8,8 @@ use Illuminate\Http\JsonResponse;
 use App\Models\Order;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Log;
+
 
 class OrderController extends Controller
 {
@@ -101,7 +103,7 @@ class OrderController extends Controller
             ]);
             
         } catch (\Exception $e) {
-            \Log::error('Error loading orders: ' . $e->getMessage(), [
+            Log::error('Error loading orders: ' . $e->getMessage(), [
                 'user_id' => $request->user()?->id,
                 'request' => $request->all()
             ]);
@@ -186,7 +188,7 @@ class OrderController extends Controller
                 'message' => 'Order not found'
             ], 404);
         } catch (\Exception $e) {
-            \Log::error('Error loading order: ' . $e->getMessage(), [
+            Log::error('Error loading order: ' . $e->getMessage(), [
                 'order_id' => $id,
                 'user_id' => $request->user()?->id
             ]);
@@ -273,7 +275,7 @@ class OrderController extends Controller
                 'errors' => $e->errors()
             ], 422);
         } catch (\Exception $e) {
-            \Log::error('Error creating order: ' . $e->getMessage());
+            Log::error('Error creating order: ' . $e->getMessage());
             
             return response()->json([
                 'success' => false,
@@ -327,7 +329,7 @@ class OrderController extends Controller
                 'errors' => $e->errors()
             ], 422);
         } catch (\Exception $e) {
-            \Log::error('Error updating order: ' . $e->getMessage());
+            Log::error('Error updating order: ' . $e->getMessage());
             
             return response()->json([
                 'success' => false,
@@ -380,7 +382,7 @@ class OrderController extends Controller
                 'errors' => $e->errors()
             ], 422);
         } catch (\Exception $e) {
-            \Log::error('Error updating order status: ' . $e->getMessage());
+            Log::error('Error updating order status: ' . $e->getMessage());
             
             return response()->json([
                 'success' => false,
@@ -426,7 +428,7 @@ class OrderController extends Controller
                 'message' => 'Order not found'
             ], 404);
         } catch (\Exception $e) {
-            \Log::error('Error deleting order: ' . $e->getMessage());
+            Log::error('Error deleting order: ' . $e->getMessage());
             
             return response()->json([
                 'success' => false,
@@ -481,7 +483,7 @@ class OrderController extends Controller
             ]);
             
         } catch (\Exception $e) {
-            \Log::error('Error recalculating totals: ' . $e->getMessage());
+            Log::error('Error recalculating totals: ' . $e->getMessage());
             
             return response()->json([
                 'success' => false,

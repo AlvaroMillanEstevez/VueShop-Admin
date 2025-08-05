@@ -14,14 +14,9 @@ class AuthController extends Controller
 {
     public function login(Request $request)
     {
-        // Log básico
-        Log::info('=== LOGIN REQUEST START ===');
-        Log::info('Request method: ' . $request->method());
-        Log::info('Request URL: ' . $request->url());
-        Log::info('Request data: ', $request->all());
         
         try {
-            // Verificar que lleguen los datos
+            // Verify data is received
             if (!$request->email || !$request->password) {
                 Log::error('Missing email or password');
                 return response()->json([
@@ -31,7 +26,7 @@ class AuthController extends Controller
 
             Log::info('Searching user with email: ' . $request->email);
             
-            // Buscar usuario (con timeout control)
+            // Search user (timeout control)
             $user = User::where('email', $request->email)->first();
             
             if (!$user) {
@@ -41,17 +36,13 @@ class AuthController extends Controller
                 ], 404);
             }
 
-            Log::info('User found: ' . $user->id . ' - ' . $user->name);
-
-            // Verificar contraseña
+            // Verify password
             if (!Hash::check($request->password, $user->password)) {
                 Log::error('Invalid password for: ' . $request->email);
                 return response()->json([
                     'error' => 'Invalid password'
                 ], 401);
             }
-
-            Log::info('Password verified, checking if user is active');
 
             if (!$user->is_active) {
                 Log::error('User is inactive: ' . $request->email);
@@ -60,9 +51,7 @@ class AuthController extends Controller
                 ], 401);
             }
 
-            Log::info('Creating JWT token...');
-
-            // Intentar crear token JWT
+            // Try to create JWT token
             try {
                 $token = JWTAuth::fromUser($user);
                 Log::info('JWT token created successfully');
@@ -106,7 +95,6 @@ class AuthController extends Controller
 
     public function register(Request $request)
     {
-        Log::info('=== REGISTER REQUEST ===');
         
         try {
             $user = User::create([

@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('customers', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('email'); // Permitir duplicados ya que no están vinculados a usuarios
+            $table->string('email');
             $table->string('phone')->nullable();
             $table->text('address')->nullable();
             $table->string('city')->nullable();
@@ -19,7 +19,7 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->timestamps();
             
-            // Índices para búsqueda
+            // serch index
             $table->index('email');
             $table->index('name');
         });

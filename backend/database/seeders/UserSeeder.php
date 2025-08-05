@@ -10,9 +10,9 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        echo "👤 Creando usuarios...\n";
+        echo "👤 Creating users...\n";
 
-        // Admin user - tendrá acceso completo y panel de administración
+        // Admin user 
         $admin = User::create([
             'name' => 'Super Admin',
             'email' => 'admin@vueshop.com',
@@ -21,7 +21,7 @@ class UserSeeder extends Seeder
             'is_active' => true,
         ]);
 
-        // Manager users - usuarios normales que usan la app
+        // Manager users 
         $manager1 = User::create([
             'name' => 'Juan García Pérez',
             'email' => 'juan@vueshop.com',

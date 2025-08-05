@@ -2,10 +2,10 @@
   <div class="min-h-screen flex items-center justify-center bg-gray-50">
     <div class="max-w-md w-full bg-white p-8 rounded-lg shadow-md">
       <div class="text-center mb-8">
-        <h2 class="text-3xl font-bold text-gray-900">Crear Cuenta</h2>
-        <p class="text-gray-600 mt-2">Registra tu cuenta de manager</p>
+        <h2 class="text-3xl font-bold text-gray-900">Create Account</h2>
+        <p class="text-gray-600 mt-2">Register your manager account</p>
       </div>
-      
+
       <form @submit.prevent="handleRegister" class="space-y-6">
         <div>
           <input
@@ -13,10 +13,10 @@
             type="text"
             required
             class="form-input"
-            placeholder="Nombre completo"
+            placeholder="Full Name"
           />
         </div>
-        
+
         <div>
           <input
             v-model="form.email"
@@ -26,24 +26,24 @@
             placeholder="Email"
           />
         </div>
-        
+
         <div>
           <input
             v-model="form.password"
             type="password"
             required
             class="form-input"
-            placeholder="Contraseña"
+            placeholder="Password"
           />
         </div>
-        
+
         <div>
           <input
             v-model="form.password_confirmation"
             type="password"
             required
             class="form-input"
-            placeholder="Confirmar contraseña"
+            placeholder="Confirm Password"
           />
         </div>
 
@@ -56,8 +56,8 @@
           :disabled="authStore.isLoading"
           class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
         >
-          <span v-if="authStore.isLoading">Creando cuenta...</span>
-          <span v-else>Crear cuenta</span>
+          <span v-if="authStore.isLoading">Creating account...</span>
+          <span v-else>Create Account</span>
         </button>
       </form>
 
@@ -66,7 +66,7 @@
           to="/login"
           class="text-blue-600 hover:text-blue-500 text-sm"
         >
-          ¿Ya tienes cuenta? Inicia sesión
+          Already have an account? Sign in
         </router-link>
       </div>
     </div>
@@ -90,19 +90,34 @@ const form = reactive({
 
 const handleRegister = async () => {
   authStore.clearError()
-  
-  if (form.password !== form.password_confirmation) {
-    authStore.error = 'Las contraseñas no coinciden'
+
+  // Basic frontend validation
+  if (!form.name.trim()) {
+    authStore.error = 'Name is required'
     return
   }
-  
-  try {
-    const response = await authStore.register(form)
-    if (response.success) {
-      router.push('/dashboard')
-    }
-  } catch (error) {
-    console.error('Registration error:', error)
+
+  if (!form.email.trim() || !form.email.includes('@')) {
+    authStore.error = 'Enter a valid email'
+    return
+  }
+
+  if (!form.password || form.password.length < 6) {
+    authStore.error = 'Password must be at least 6 characters'
+    return
+  }
+
+  if (form.password !== form.password_confirmation) {
+    authStore.error = 'Passwords do not match'
+    return
+  }
+
+  const response = await authStore.register(form)
+
+  if (response.success) {
+    router.push('/dashboard')
+  } else {
+    authStore.error = response.error || 'User registration failed'
   }
 }
 </script>

@@ -11,21 +11,21 @@ use Illuminate\Support\Facades\Validator;
 class ProductController extends Controller
 {
     /**
-     * Display a listing of products
+     * Retrieve a list of products.
      */
     public function index(Request $request)
     {
         $userId = Auth::id();
         $isAdmin = Auth::user()->role === 'admin';
-        
+
         $query = Product::with('user');
-        
-        // Filtrar por usuario si no es admin
+
+        // Filter by user if not admin
         if (!$isAdmin) {
             $query->where('user_id', $userId);
         }
-        
-        // Filtros adicionales
+
+        // Additional filters
         if ($request->has('search')) {
             $search = $request->get('search');
             $query->where(function ($q) use ($search) {
@@ -34,19 +34,19 @@ class ProductController extends Controller
                   ->orWhere('category', 'like', "%{$search}%");
             });
         }
-        
+
         if ($request->has('category')) {
             $query->where('category', $request->get('category'));
         }
-        
+
         if ($request->has('active')) {
             $query->where('active', $request->boolean('active'));
         }
-        
+
         $products = $query->orderBy('created_at', 'desc')
                          ->paginate(15);
-        
-        // Transformar datos para incluir info del vendedor si es admin
+
+        // Transform data to include seller info if admin
         $products->getCollection()->transform(function ($product) use ($isAdmin) {
             $data = [
                 'id' => $product->id,
@@ -61,24 +61,24 @@ class ProductController extends Controller
                 'created_at' => $product->created_at->format('Y-m-d H:i:s'),
                 'updated_at' => $product->updated_at->format('Y-m-d H:i:s'),
             ];
-            
-            // Incluir info del vendedor si es admin
+
+            // Include seller info if admin
             if ($isAdmin) {
                 $data['seller'] = [
                     'id' => $product->user->id ?? null,
-                    'name' => $product->user->name ?? 'Sin asignar',
+                    'name' => $product->user->name ?? 'Unassigned',
                     'email' => $product->user->email ?? '',
                 ];
             }
-            
+
             return $data;
         });
-        
+
         return response()->json($products);
     }
 
     /**
-     * Store a newly created product
+     * Create a new product.
      */
     public function store(Request $request)
     {
@@ -114,14 +114,14 @@ class ProductController extends Controller
     }
 
     /**
-     * Display the specified product
+     * Retrieve a specific product.
      */
     public function show(Product $product)
     {
         $userId = Auth::id();
         $isAdmin = Auth::user()->role === 'admin';
-        
-        // Verificar que el usuario puede ver este producto
+
+        // Check if user can view this product
         if (!$isAdmin && $product->user_id !== $userId) {
             return response()->json([
                 'success' => false,
@@ -136,14 +136,14 @@ class ProductController extends Controller
     }
 
     /**
-     * Update the specified product
+     * Update a specific product.
      */
     public function update(Request $request, Product $product)
     {
         $userId = Auth::id();
         $isAdmin = Auth::user()->role === 'admin';
-        
-        // Verificar que el usuario puede editar este producto
+
+        // Check if user can update this product
         if (!$isAdmin && $product->user_id !== $userId) {
             return response()->json([
                 'success' => false,
@@ -180,14 +180,14 @@ class ProductController extends Controller
     }
 
     /**
-     * Remove the specified product
+     * Delete a specific product.
      */
     public function destroy(Product $product)
     {
         $userId = Auth::id();
         $isAdmin = Auth::user()->role === 'admin';
-        
-        // Verificar que el usuario puede eliminar este producto
+
+        // Check if user can delete this product
         if (!$isAdmin && $product->user_id !== $userId) {
             return response()->json([
                 'success' => false,
@@ -195,7 +195,7 @@ class ProductController extends Controller
             ], 403);
         }
 
-        // Verificar si el producto tiene pedidos asociados
+        // Check if the product has associated orders
         if ($product->orderItems()->exists()) {
             return response()->json([
                 'success' => false,

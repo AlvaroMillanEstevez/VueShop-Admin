@@ -89,16 +89,6 @@ class User extends Authenticatable implements JWTSubject
     }
 
     /**
-     * Check if user is customer
-     */
-    public function getIsCustomerAttribute(): bool
-    {
-        return $this->role === 'customer';
-    }
-
-    // ELIMINAMOS la relación customers() ya que los clientes son independientes
-
-    /**
      * Relationship: User has many products (as seller)
      */
     public function products()
@@ -120,14 +110,6 @@ class User extends Authenticatable implements JWTSubject
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
-    }
-
-    /**
-     * Scope: Only customers
-     */
-    public function scopeCustomers($query)
-    {
-        return $query->where('role', 'customer');
     }
 
     /**

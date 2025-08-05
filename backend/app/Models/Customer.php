@@ -20,7 +20,7 @@ class Customer extends Model
     ];
 
     /**
-     * Relationship with orders - Un cliente puede tener muchos pedidos
+     * Relationship with orders - A customer can have many orders.
      */
     public function orders()
     {
@@ -28,7 +28,7 @@ class Customer extends Model
     }
 
     /**
-     * Calculate total spent by customer across all orders
+     * Calculate total amount spent by the customer across all orders.
      */
     public function getTotalSpentAttribute()
     {
@@ -36,7 +36,7 @@ class Customer extends Model
     }
 
     /**
-     * Get orders count
+     * Get the number of orders.
      */
     public function getOrdersCountAttribute()
     {
@@ -44,7 +44,7 @@ class Customer extends Model
     }
 
     /**
-     * Get last order date
+     * Get the date of the most recent order.
      */
     public function getLastOrderAtAttribute()
     {
@@ -52,7 +52,7 @@ class Customer extends Model
     }
 
     /**
-     * Scope para búsqueda por nombre o email
+     * Scope to search by name, email, or phone.
      */
     public function scopeSearch($query, $search)
     {
@@ -64,7 +64,7 @@ class Customer extends Model
     }
 
     /**
-     * Scope para obtener clientes con pedidos
+     * Scope to get customers with orders.
      */
     public function scopeWithOrders($query)
     {
@@ -72,7 +72,7 @@ class Customer extends Model
     }
 
     /**
-     * Scope para obtener clientes sin pedidos
+     * Scope to get customers without orders.
      */
     public function scopeWithoutOrders($query)
     {

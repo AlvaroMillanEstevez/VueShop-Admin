@@ -11,6 +11,8 @@ use App\Models\User;
 use App\Models\Customer;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
 
 class DashboardController extends Controller
 {
@@ -23,7 +25,7 @@ class DashboardController extends Controller
             $user = $request->user();
             
             // Log para debugging
-            \Log::info('Dashboard stats request', [
+            Log::info('Dashboard stats request', [
                 'user_id' => $user->id,
                 'is_admin' => $user->is_admin,
                 'role' => $user->role
@@ -55,14 +57,6 @@ class DashboardController extends Controller
             $activeCustomers = $customersQuery->count(); // Customers que han hecho pedidos
             $productsInStock = $productsQuery->where('active', true)->where('stock', '>', 0)->count();
             
-            // Log de los valores calculados
-            \Log::info('Stats calculated', [
-                'total_revenue' => $totalRevenue,
-                'total_orders' => $totalOrders,
-                'active_customers' => $activeCustomers,
-                'products_in_stock' => $productsInStock
-            ]);
-            
             $stats = [
                 'total_revenue' => [
                     'amount' => (float) $totalRevenue,
@@ -81,7 +75,7 @@ class DashboardController extends Controller
             ]);
             
         } catch (\Exception $e) {
-            \Log::error('Error loading dashboard stats: ' . $e->getMessage(), [
+            Log::error('Error loading dashboard stats: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
             ]);
             
@@ -146,7 +140,7 @@ class DashboardController extends Controller
             ]);
             
         } catch (\Exception $e) {
-            \Log::error('Error loading sales chart: ' . $e->getMessage());
+            Log::error('Error loading sales chart: ' . $e->getMessage());
             
             return response()->json([
                 'success' => false,
@@ -208,7 +202,7 @@ class DashboardController extends Controller
             ]);
             
         } catch (\Exception $e) {
-            \Log::error('Error loading top products: ' . $e->getMessage());
+            Log::error('Error loading top products: ' . $e->getMessage());
             
             return response()->json([
                 'success' => false,
@@ -269,7 +263,7 @@ class DashboardController extends Controller
             ]);
             
         } catch (\Exception $e) {
-            \Log::error('Error loading recent orders: ' . $e->getMessage());
+            Log::error('Error loading recent orders: ' . $e->getMessage());
             
             return response()->json([
                 'success' => false,

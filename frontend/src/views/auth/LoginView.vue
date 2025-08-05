@@ -205,7 +205,6 @@ const handleLogin = async () => {
     success.value = false
     sessionExpiredMessage.value = ''
     
-    // Validación básica
     if (!form.email.trim()) {
       throw new Error('Email is required')
     }
@@ -220,7 +219,6 @@ const handleLogin = async () => {
     
     console.log('Starting login process...')
     
-    // Intentar login
     const result = await authStore.login({
       email: form.email.trim(),
       password: form.password
@@ -235,7 +233,6 @@ const handleLogin = async () => {
       // Check if there's a redirect URL from the query
       const redirectTo = route.query.redirect as string || '/dashboard'
       
-      // Pequeña pausa para mostrar el mensaje de éxito
       setTimeout(() => {
         router.push(redirectTo)
       }, 1000)
@@ -247,7 +244,6 @@ const handleLogin = async () => {
   } catch (err) {
     console.error('Login error in component:', err)
     
-    // Determinar mensaje de error apropiado
     if (err instanceof Error) {
       error.value = err.message
     } else if (typeof err === 'string') {
@@ -263,13 +259,12 @@ const handleLogin = async () => {
   }
 }
 
-// Helper function para validar email
+// Helper function
 const isValidEmail = (email: string): boolean => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   return emailRegex.test(email)
 }
 
-// Limpiar error cuando el usuario empiece a escribir
 const clearError = () => {
   if (error.value) {
     error.value = ''

@@ -1,45 +1,45 @@
 <template>
   <div v-if="visible" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
     <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg w-full max-w-3xl">
-      <h2 class="text-xl font-semibold mb-4">{{ isEdit ? 'Editar Pedido' : 'Nuevo Pedido' }}</h2>
+      <h2 class="text-xl font-semibold mb-4">{{ isEdit ? 'Edit Order' : 'New Order' }}</h2>
 
       <form @submit.prevent="handleSubmit">
         <div class="mb-4">
-          <label class="block text-sm font-medium mb-1">Cliente</label>
+          <label class="block text-sm font-medium mb-1">Customer</label>
           <select v-model="form.customer_id" class="w-full rounded border px-3 py-2 dark:bg-gray-900 dark:border-gray-700">
-            <option disabled value="">Seleccione un cliente</option>
+            <option disabled value="">Select a customer</option>
             <option v-for="c in customers" :key="c.id" :value="c.id">{{ c.name }}</option>
           </select>
         </div>
 
         <div class="mb-4">
-          <label class="block text-sm font-medium mb-1">Productos</label>
+          <label class="block text-sm font-medium mb-1">Products</label>
           <div v-for="(item, index) in form.items" :key="index" class="flex space-x-2 mb-2">
             <select v-model.number="item.product_id" class="w-1/2 rounded border px-3 py-2 dark:bg-gray-900 dark:border-gray-700">
-              <option disabled value="">Seleccione producto</option>
+              <option disabled value="">Select a product</option>
               <option v-for="product in products" :key="product.id" :value="product.id">
                 {{ product.name }} - €{{ product.price }}
               </option>
             </select>
-            <input type="number" v-model.number="item.quantity" min="1" class="w-1/4 rounded border px-3 py-2 dark:bg-gray-900 dark:border-gray-700" placeholder="Cantidad" />
-            <button type="button" @click="removeItem(index)" class="text-red-500 text-sm">Eliminar</button>
+            <input type="number" v-model.number="item.quantity" min="1" class="w-1/4 rounded border px-3 py-2 dark:bg-gray-900 dark:border-gray-700" placeholder="Quantity" />
+            <button type="button" @click="removeItem(index)" class="text-red-500 text-sm">Remove</button>
           </div>
-          <button type="button" @click="addItem" class="text-blue-600 text-sm mt-1">+ Añadir producto</button>
+          <button type="button" @click="addItem" class="text-blue-600 text-sm mt-1">+ Add product</button>
         </div>
 
         <div class="grid grid-cols-2 gap-4 mb-4">
           <div>
-            <label class="block text-sm font-medium mb-1">Impuestos</label>
+            <label class="block text-sm font-medium mb-1">Tax</label>
             <input type="number" v-model.number="form.tax" min="0" step="0.01" class="w-full rounded border px-3 py-2 dark:bg-gray-900 dark:border-gray-700" />
           </div>
           <div>
-            <label class="block text-sm font-medium mb-1">Envío</label>
+            <label class="block text-sm font-medium mb-1">Shipping</label>
             <input type="number" v-model.number="form.shipping" min="0" step="0.01" class="w-full rounded border px-3 py-2 dark:bg-gray-900 dark:border-gray-700" />
           </div>
         </div>
 
         <div class="mb-4">
-          <label class="block text-sm font-medium mb-1">Notas</label>
+          <label class="block text-sm font-medium mb-1">Notes</label>
           <textarea v-model="form.notes" rows="2" class="w-full rounded border px-3 py-2 dark:bg-gray-900 dark:border-gray-700"></textarea>
         </div>
 
@@ -49,9 +49,9 @@
         </div>
 
         <div class="flex justify-end gap-3">
-          <button type="button" @click="$emit('close')" class="bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-white px-4 py-2 rounded-xl">Cancelar</button>
+          <button type="button" @click="$emit('close')" class="bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-white px-4 py-2 rounded-xl">Cancel</button>
           <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-xl shadow">
-            {{ isEdit ? 'Guardar Cambios' : 'Crear Pedido' }}
+            {{ isEdit ? 'Save Changes' : 'Create Order' }}
           </button>
         </div>
       </form>
@@ -87,7 +87,6 @@ interface OrderForm {
   shipping: number
   notes: string
 }
-
 
 const form = ref<OrderForm>({
   customer_id: '',
@@ -167,7 +166,7 @@ const handleSubmit = async () => {
     emit('saved')
     emit('close')
   } catch (err) {
-    console.error('Error guardando pedido:', err)
+    console.error('Error saving order:', err)
   }
 }
 

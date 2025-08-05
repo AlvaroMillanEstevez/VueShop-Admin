@@ -19,7 +19,7 @@ const editOrder = (order: Order): void => {
 }
 
 
-// Types - Puedes importarlos desde types/index.ts si los tienes
+// Types
 interface Customer {
   id: number
   name: string

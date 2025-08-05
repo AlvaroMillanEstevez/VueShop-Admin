@@ -8,15 +8,16 @@ use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\RegisterController;
 
-// Rutas públicas de autenticación
+// Public routes for auth
 Route::prefix('auth')->group(function () {
-    Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/refresh', [AuthController::class, 'refresh']);
+    Route::post('/register', [RegisterController::class, 'register']);
 });
 
-// Rutas protegidas con autenticación
+// Protected routes with auth
 Route::middleware('auth:api')->group(function () {
     // Auth routes
     Route::prefix('auth')->group(function () {
@@ -25,31 +26,22 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
     });
 
-    // Dashboard routes - todas protegidas
+    // Dashboard routes - all protected
     Route::prefix('dashboard')->group(function () {
         // Dashboard stats
         Route::get('/stats', [DashboardController::class, 'stats']);
         Route::get('/sales-chart', [DashboardController::class, 'salesChart']);
         Route::get('/top-products', [DashboardController::class, 'topProducts']);
         Route::get('/recent-orders', [DashboardController::class, 'recentOrders']);
-        
-        // Test endpoint
-        Route::get('/test', function () {
-            return response()->json([
-                'message' => 'VueShop Admin API is working!',
-                'timestamp' => now(),
-                'user' => auth()->user(),
-            ]);
-        });
-        
-        // Products - CRUD completo
+
+        // Products - full CRUD
         Route::get('/products', [ProductController::class, 'index']);
         Route::get('/products/{product}', [ProductController::class, 'show']);
         Route::post('/products', [ProductController::class, 'store']);
         Route::put('/products/{product}', [ProductController::class, 'update']);
         Route::delete('/products/{product}', [ProductController::class, 'destroy']);
-        
-        // Orders - CRUD completo
+
+        // Orders - full CRUD 
         Route::get('/orders', [OrderController::class, 'index']);
         Route::get('/orders/{order}', [OrderController::class, 'show']);
         Route::post('/orders', [OrderController::class, 'store']);
@@ -57,8 +49,8 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/orders/{order}', [OrderController::class, 'destroy']);
 
         Route::post('/orders/recalculate-totals', [OrderController::class, 'recalculateTotals']);
-        
-        // Customers - CRUD completo
+
+        // Customers - full CRUD 
         Route::get('/customers', [CustomerController::class, 'index']);
         Route::get('/customers/{customer}', [CustomerController::class, 'show']);
         Route::post('/customers', [CustomerController::class, 'store']);
